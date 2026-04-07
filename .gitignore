@@ -1,0 +1,46 @@
+# ==========================================
+# 1. Ambientes Virtuais (A Regra de Ouro)
+# ==========================================
+# Nunca suba a pasta do ambiente virtual. Ela é gigante e só serve para a sua máquina.
+.venv/
+venv/
+env/
+
+# ==========================================
+# 2. Ficheiros Compilados do Python
+# ==========================================
+# Ficheiros pesados e desnecessários que o Python gera sozinho
+__pycache__/
+*.py[cod]
+*$py.class
+
+# ==========================================
+# 3. Bases de Dados Locais
+# ==========================================
+# Impede que o seu banco de testes inicial vá para o GitHub
+db.sqlite3
+db.sqlite3-journal
+
+# ==========================================
+# 4. Ficheiros do Sistema Operacional (macOS)
+# ==========================================
+# Ficheiros ocultos que o Mac cria em todas as pastas
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# ==========================================
+# 5. Configurações de IDEs (Editores de Código)
+# ==========================================
+# Impede que as configurações do seu VS Code, PyCharm ou WebStorm subam
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# ==========================================
+# 6. Variáveis de Ambiente e Segurança
+# ==========================================
+# Aqui guardaremos senhas e chaves no futuro
+.env
+.env.local
