@@ -1,3 +1,7 @@
-from django.shortcuts import render
+from rest_framework import viewsets
+from .models import Estufa
+from .serializers import EstufaSerializer
 
-# Create your views here.
+class EstufaViewSet(viewsets.ModelViewSet):
+    queryset = Estufa.objects.all() 
+    serializer_class = EstufaSerializer
