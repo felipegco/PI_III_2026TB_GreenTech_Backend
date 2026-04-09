@@ -44,7 +44,7 @@ INSTALLED_APPS = [
     'rest_framework',
 
 # apps
-    'comercial',
+    'cliente',
     'estoque',
     'estufa',
     'funcionarios',
