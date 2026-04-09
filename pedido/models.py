@@ -17,6 +17,9 @@ class Pedido(models.Model):
     def __str__(self):
         return f"Pedido #{self.id} - {self.cliente.nome}"
 
+    class Meta:
+        db_table = 'pedido'
+
 class PedidoItem(models.Model):
     pedido = models.ForeignKey(Pedido, on_delete=models.CASCADE)
     produto_final = models.ForeignKey(ProdutoFinal, on_delete=models.CASCADE)
@@ -26,3 +29,6 @@ class PedidoItem(models.Model):
 
     def __str__(self):
         return f"Item {self.produto_final.nome_produto} (Pedido #{self.pedido.id})"
+
+    class Meta:
+        db_table = 'pedido_item'
