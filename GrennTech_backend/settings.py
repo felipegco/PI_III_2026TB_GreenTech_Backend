@@ -44,10 +44,12 @@ INSTALLED_APPS = [
     'rest_framework',
 
 # apps
-    'infraestrutura',
-    'estoque',
-    'producao',
     'comercial',
+    'estoque',
+    'estufa',
+    'funcionarios',
+    'producao',
+    'registroClima',
 ]
 
 MIDDLEWARE = [

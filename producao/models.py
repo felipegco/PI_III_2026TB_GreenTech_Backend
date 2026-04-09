@@ -1,6 +1,6 @@
 from django.db import models
 from estoque.models import Insumo, ProdutoFinal
-from infraestrutura.models import Estufa
+from estufa.models import Estufa
 
 
 class LotePlantio(models.Model):
