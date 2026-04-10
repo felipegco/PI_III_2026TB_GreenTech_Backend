@@ -1,3 +1,4 @@
 from django.contrib import admin
+from registroClima.models import RegistroClima
 
-# Register your models here.
+admin.site.register(RegistroClima)

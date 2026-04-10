@@ -1,3 +1,4 @@
 from django.contrib import admin
+from estufa.models import Estufa
 
-# Register your models here.
+admin.site.register(Estufa)
