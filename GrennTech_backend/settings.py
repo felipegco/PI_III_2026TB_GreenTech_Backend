@@ -45,11 +45,13 @@ INSTALLED_APPS = [
 
 # apps
     'cliente',
+    'colheita',
     'estoque',
     'estufa',
     'funcionarios',
+    'lotePlantio',
+    'manejo',
     'pedido',
-    'producao',
     'registroClima',
 ]
 

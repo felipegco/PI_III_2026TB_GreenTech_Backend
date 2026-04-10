@@ -5,5 +5,4 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     # Tudo o que começar com 'api/infra/' vai ser mandado para o nosso arquivo novo
     path('api/estufa/', include('estufa.urls')),
-    path('api/producao/', include('producao.urls')),
 ]
