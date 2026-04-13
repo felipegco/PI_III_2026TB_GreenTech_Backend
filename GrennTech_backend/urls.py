@@ -1,8 +1,8 @@
 from django.contrib import admin
-from django.urls import path, include # Adicionamos o include aqui!
+from django.urls import path, include
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    # Tudo o que começar com 'api/infra/' vai ser mandado para o nosso arquivo novo
-    path('api/estufa/', include('estufa.urls')),
+    path('api/', include('estufa.urls')),
+    path('api/', include('cliente.urls')),
 ]
