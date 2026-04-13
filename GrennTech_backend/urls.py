@@ -10,5 +10,5 @@ urlpatterns = [
     path('api/', include('funcionarios.urls')),
     path('api/', include('lotePlantio.urls')),
     path('api/', include('manejo.urls')),
-
+    path('api/pedidos/', include('pedido.urls')),
 ]

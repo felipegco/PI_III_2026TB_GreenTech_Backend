@@ -1,3 +1,11 @@
-from django.shortcuts import render
+from rest_framework import viewsets
+from .models import Pedido, PedidoItem
+from .serializers import PedidoSerializer, PedidoItemSerializer
 
-# Create your views here.
+class PedidoViewSet(viewsets.ModelViewSet):
+    queryset = Pedido.objects.all()
+    serializer_class = PedidoSerializer
+
+class PedidoItemViewSet(viewsets.ModelViewSet):
+    queryset = PedidoItem.objects.all()
+    serializer_class = PedidoItemSerializer
