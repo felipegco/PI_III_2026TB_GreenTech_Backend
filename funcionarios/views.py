@@ -1,3 +1,7 @@
-from django.shortcuts import render
+from rest_framework import viewsets
+from estufa.models import Estufa
+from funcionarios.serializers import FuncionarioSerializer
 
-# Create your views here.
+class FuncionariosViewSet(viewsets.ModelViewSet):
+    queryset = Estufa.objects.all()
+    serializer_class = FuncionarioSerializer
