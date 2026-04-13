@@ -1,6 +1,6 @@
 from rest_framework import viewsets
-from .models import Estufa
-from .serializers import EstufaSerializer
+from estufa.models import Estufa
+from estufa.serializers import EstufaSerializer
 
 class EstufaViewSet(viewsets.ModelViewSet):
     queryset = Estufa.objects.all()
