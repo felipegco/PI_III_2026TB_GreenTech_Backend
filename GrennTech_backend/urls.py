@@ -7,4 +7,6 @@ urlpatterns = [
     path('api/', include('cliente.urls')),
     path('api/', include('colheita.urls')),
 
+    path('api/estoque/', include('estoque.urls')),
+
 ]

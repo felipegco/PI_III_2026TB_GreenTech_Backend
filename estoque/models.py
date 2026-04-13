@@ -10,6 +10,9 @@ class Insumo(models.Model):
     class Meta:
         db_table = 'insumo'
 
+    def __str__(self):
+        return self.nome_insumo
+
 class ProdutoFinal(models.Model):
     nome_produto = models.CharField(max_length=100)
     classificacao = models.CharField(max_length=50)
@@ -19,7 +22,5 @@ class ProdutoFinal(models.Model):
     class Meta:
         db_table = 'produto_final'
 
-
-
     def __str__(self):
-        return self.nome_insumo
+        return self.nome_produto
