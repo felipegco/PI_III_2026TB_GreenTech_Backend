@@ -1,3 +1,7 @@
-from django.shortcuts import render
+from rest_framework import viewsets
+from colheita.models import Colheita
+from colheita.serializers import ColheitaSerializer
 
-# Create your views here.
+class ColheitaViewSet(viewsets.ModelViewSet):
+    queryset = Colheita.objects.all()
+    serializer_class = ColheitaSerializer
