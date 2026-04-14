@@ -1,3 +1,7 @@
-from django.shortcuts import render
+from rest_framework import viewsets
+from .models import RegistroClima
+from .serializers import RegistroClimaSerializer
 
-# Create your views here.
+class RegistroClimaViewSet(viewsets.ModelViewSet):
+    queryset = RegistroClima.objects.all()
+    serializer_class = RegistroClimaSerializer
