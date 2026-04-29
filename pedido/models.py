@@ -3,6 +3,7 @@ from estoque.models import ProdutoFinal
 from django.utils import timezone
 from cliente.models import Cliente
 
+
 class Pedido(models.Model):
     class StatusPedido(models.TextChoices):
         PENDENTE = 'PE', 'Pendente'
@@ -11,7 +12,13 @@ class Pedido(models.Model):
 
     cliente = models.ForeignKey(Cliente, on_delete=models.CASCADE)
     data_pedido = models.DateTimeField(default=timezone.now)
-    status_pedido = models.CharField(max_length=2, choices=StatusPedido, default=StatusPedido.PENDENTE)
+
+    # ATENÇÃO AQUI: Adicione o .choices
+    status_pedido = models.CharField(
+        max_length=2,
+        choices=StatusPedido.choices,
+        default=StatusPedido.PENDENTE
+    )
     valor_total_pedido = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
 
     def __str__(self):
@@ -19,6 +26,7 @@ class Pedido(models.Model):
 
     class Meta:
         db_table = 'pedido'
+
 
 class PedidoItem(models.Model):
     pedido = models.ForeignKey(Pedido, on_delete=models.CASCADE)

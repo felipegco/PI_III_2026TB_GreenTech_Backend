@@ -1,6 +1,7 @@
 from django.db import models
 from estufa.models import Estufa
 
+
 class LotePlantio(models.Model):
     class StatusPlantio(models.TextChoices):
         ATIVO = 'AT', 'Ativo'
@@ -10,9 +11,11 @@ class LotePlantio(models.Model):
     estufa = models.ForeignKey(Estufa, on_delete=models.CASCADE)
     cultura = models.CharField(max_length=100)
     data_plantio = models.DateField()
+
+    # ATENÇÃO AQUI: Adicione o .choices
     status = models.CharField(
         max_length=2,
-        choices=StatusPlantio,
+        choices=StatusPlantio.choices,
         default=StatusPlantio.ATIVO
     )
     custo_total = models.FloatField(default=0.0)

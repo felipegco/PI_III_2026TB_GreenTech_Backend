@@ -7,12 +7,13 @@ class Funcionario(models.Model):
     cpf = models.CharField(max_length=14, unique=True)
     telefone = models.CharField(max_length=20, blank=True)
 
-    class Cargos(models.TextChoices):
-        GERENTE = 'GE', 'Gerente da Estufa'
-        AGRONOMO = 'AG', 'Agrônomo'
-        OPERADOR = 'OP', 'Operador de Manejo'
+    CARGOS_CHOICES = [
+        ('gerente', 'Gerente'),
+        ('operador', 'Operador'),
+        ('tecnico', 'Técnico'),
+    ]
 
-    cargo = models.CharField(max_length=2, choices=Cargos, default=Cargos.OPERADOR)
+    cargo = models.CharField(max_length=50, choices=CARGOS_CHOICES)
     usuario = models.OneToOneField(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='funcionario')
 
     class Meta:
