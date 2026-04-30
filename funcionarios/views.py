@@ -1,4 +1,5 @@
 from rest_framework import viewsets, status
+from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -12,6 +13,20 @@ from .serializers import FuncionarioSerializer
 class FuncionariosViewSet(viewsets.ModelViewSet):
     queryset = Funcionario.objects.all()
     serializer_class = FuncionarioSerializer
+    permission_classes = [IsAuthenticated]
+
+    @action(detail=False, methods=['get'], url_path='me')
+    def me(self, request):
+        try:
+            funcionario = Funcionario.objects.get(usuario=request.user)
+        except Funcionario.DoesNotExist:
+            return Response(
+                {"detail": "Funcionário não encontrado para este usuário."},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        serializer = self.get_serializer(funcionario)
+        return Response(serializer.data, status=status.HTTP_200_OK)
 
 
 class LoginView(APIView):
@@ -23,24 +38,39 @@ class LoginView(APIView):
         user = authenticate(username=usuario, password=senha)
 
         if user is not None:
-            return Response({"message": "Login com sucesso!"}, status=status.HTTP_200_OK)
+            refresh = RefreshToken.for_user(user)
+
+            return Response(
+                {
+                    "message": "Login com sucesso!",
+                    "access": str(refresh.access_token),
+                    "refresh": str(refresh),
+                },
+                status=status.HTTP_200_OK
+            )
         else:
-            return Response({"erro": "Usuário ou senha inválidos."}, status=status.HTTP_401_UNAUTHORIZED)
+            return Response(
+                {"erro": "Usuário ou senha inválidos."},
+                status=status.HTTP_401_UNAUTHORIZED
+            )
 
 
 class LogoutView(APIView):
-    # Só deixa deslogar se estiver logado
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
         try:
-            # Pega o refresh token que o Front-end enviou no POST
             refresh_token = request.data["refresh"]
 
-            # Instancia o token e manda para a lista negra
             token = RefreshToken(refresh_token)
             token.blacklist()
 
-            return Response({"message": "Logout realizado com sucesso!"}, status=status.HTTP_205_RESET_CONTENT)
-        except Exception as e:
-            return Response({"error": "Token inválido ou já expirado."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {"message": "Logout realizado com sucesso!"},
+                status=status.HTTP_205_RESET_CONTENT
+            )
+        except Exception:
+            return Response(
+                {"error": "Token inválido ou já expirado."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
