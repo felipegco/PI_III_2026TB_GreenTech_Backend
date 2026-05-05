@@ -23,3 +23,13 @@ class FuncionarioSerializer(serializers.ModelSerializer):
             'data_entrada'
         ]
         read_only_fields = ['id', 'usuario', 'username', 'email', 'cargo_display', 'data_entrada']
+
+class AlterarSenhaSerializer(serializers.Serializer):
+    senha_atual = serializers.CharField(required=True)
+    nova_senha = serializers.CharField(required=True)
+    confirmar_senha = serializers.CharField(required=True)
+
+    def validate(self, data):
+        if data['nova_senha'] != data['confirmar_senha']:
+            raise serializers.ValidationError({"confirmar_senha": "As senhas não coincidem."})
+        return data

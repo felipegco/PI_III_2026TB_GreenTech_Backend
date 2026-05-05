@@ -7,7 +7,7 @@ from django.contrib.auth import authenticate
 from rest_framework_simplejwt.tokens import RefreshToken
 
 from .models import Funcionario
-from .serializers import FuncionarioSerializer
+from .serializers import FuncionarioSerializer, AlterarSenhaSerializer
 
 
 class FuncionariosViewSet(viewsets.ModelViewSet):
@@ -39,13 +39,31 @@ class FuncionariosViewSet(viewsets.ModelViewSet):
 
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+    @action(detail=False, methods=['post'], url_path='me/alterar-senha')
+    def alterar_senha(self, request):
+        user = request.user
+        serializer = AlterarSenhaSerializer(data=request.data)
+
+        if serializer.is_valid():
+            if not user.check_password(serializer.validated_data.get("senha_atual")):
+                return Response(
+                    {"senha_atual": "A senha atual está incorreta."},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            user.set_password(serializer.validated_data.get("nova_senha"))
+            user.save()
+
+            return Response({"message": "Senha alterada com sucesso!"}, status=status.HTTP_200_OK)
+
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
 
 class LoginView(APIView):
     def post(self, request):
         usuario = request.data.get('username')
         senha = request.data.get('password')
 
-        # verifica automaticamente se o usuário e senha existem no banco
         user = authenticate(username=usuario, password=senha)
 
         if user is not None:
