@@ -15,7 +15,7 @@ class FuncionariosViewSet(viewsets.ModelViewSet):
     serializer_class = FuncionarioSerializer
     permission_classes = [IsAuthenticated]
 
-    @action(detail=False, methods=['get'], url_path='me')
+    @action(detail=False, methods=['get', 'patch', 'put'], url_path='me')
     def me(self, request):
         try:
             funcionario = Funcionario.objects.get(usuario=request.user)
@@ -25,8 +25,19 @@ class FuncionariosViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_404_NOT_FOUND
             )
 
-        serializer = self.get_serializer(funcionario)
-        return Response(serializer.data, status=status.HTTP_200_OK)
+        if request.method == 'GET':
+            serializer = self.get_serializer(funcionario)
+            return Response(serializer.data, status=status.HTTP_200_OK)
+
+        elif request.method in ['PATCH', 'PUT']:
+            partial = request.method == 'PATCH'
+            serializer = self.get_serializer(funcionario, data=request.data, partial=partial)
+
+            if serializer.is_valid():
+                serializer.save()
+                return Response(serializer.data, status=status.HTTP_200_OK)
+
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 class LoginView(APIView):
