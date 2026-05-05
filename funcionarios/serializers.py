@@ -6,6 +6,7 @@ class FuncionarioSerializer(serializers.ModelSerializer):
     username = serializers.CharField(source='usuario.username', read_only=True)
     email = serializers.EmailField(source='usuario.email', read_only=True)
     cargo_display = serializers.CharField(source='get_cargo_display', read_only=True)
+    data_entrada = serializers.DateTimeField(source='usuario.date_joined', read_only=True)
 
     class Meta:
         model = Funcionario
@@ -19,5 +20,6 @@ class FuncionarioSerializer(serializers.ModelSerializer):
             'usuario',
             'username',
             'email',
+            'data_entrada'
         ]
-        read_only_fields = ['id', 'usuario', 'username', 'email', 'cargo_display']
+        read_only_fields = ['id', 'usuario', 'username', 'email', 'cargo_display', 'data_entrada']
