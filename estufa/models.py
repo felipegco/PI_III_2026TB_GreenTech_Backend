@@ -5,5 +5,8 @@ class Estufa(models.Model):
     tipo_cultivo = models.CharField(max_length=50)
     capacidade_maxima = models.DecimalField(max_digits=10, decimal_places=2)
 
+    class Meta:
+        db_table = 'estufa'
+
     def __str__(self):
         return self.nome_setor

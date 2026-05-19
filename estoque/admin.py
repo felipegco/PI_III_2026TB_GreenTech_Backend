@@ -1,5 +1,4 @@
 from django.contrib import admin
-from .models import Insumo, ProdutoFinal
+from .models import Estoque
 
-admin.site.register(Insumo)
-admin.site.register(ProdutoFinal)
+admin.site.register(Estoque)

@@ -1,12 +1,7 @@
 from rest_framework import serializers
-from .models import Insumo, ProdutoFinal
+from .models import Estoque
 
-class InsumoSerializer(serializers.ModelSerializer):
+class EstoqueSerializer(serializers.ModelSerializer):
     class Meta:
-        model = Insumo
-        fields = '__all__'
-
-class ProdutoFinalSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = ProdutoFinal
+        model = Estoque
         fields = '__all__'

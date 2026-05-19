@@ -46,14 +46,13 @@ INSTALLED_APPS = [
     'corsheaders',
 
 # apps
-    'cliente',
     'colheita',
+    'cultura',
     'estoque',
     'estufa',
     'funcionarios',
     'lotePlantio',
-    'manejo',
-    'pedido',
+    'mesa',
     'registroClima',
     'authentication'
 ]
