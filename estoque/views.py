@@ -1,15 +1,11 @@
 from rest_framework import viewsets
 from rest_framework.permissions import IsAuthenticated
 
-from .models import Insumo, ProdutoFinal
-from .serializers import InsumoSerializer, ProdutoFinalSerializer
+from .models import Estoque
+from .serializers import EstoqueSerializer
 
-class InsumoViewSet(viewsets.ModelViewSet):
+class EstoqueViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
-    queryset = Insumo.objects.all()
-    serializer_class = InsumoSerializer
+    queryset = Estoque.objects.all()
+    serializer_class = EstoqueSerializer
 
-class ProdutoFinalViewSet(viewsets.ModelViewSet):
-    permission_classes = [IsAuthenticated]
-    queryset = ProdutoFinal.objects.all()
-    serializer_class = ProdutoFinalSerializer

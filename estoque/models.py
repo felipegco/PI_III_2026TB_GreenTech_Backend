@@ -1,26 +1,26 @@
 from django.db import models
 
-class Insumo(models.Model):
-    nome_insumo = models.CharField(max_length=100)
-    categoria = models.CharField(max_length=50)
-    unidade_medida = models.CharField(max_length=20)
-    quantidade_estoque = models.IntegerField()
-    custo_unitario = models.FloatField()
+from funcionarios.models import Funcionario
+from lotePlantio.models import LotePlantio
+
+
+class Estoque(models.Model):
+    lote_id = models.ForeignKey(LotePlantio, on_delete=models.CASCADE)
+    funcionario_id = models.ForeignKey(Funcionario, on_delete=models.CASCADE)
+    data_movimentacao = models.DateField(auto_now_add=True)
+
+    MOVIMENTACAO_CHOICES = [
+        ('ENTRADA', 'Entrada'),
+        ('SAIDA', 'Saída')
+    ]
+    tipo_movimentacao = models.CharField(max_length=10, choices=MOVIMENTACAO_CHOICES)
+    quantidade = models.IntegerField()
+    unidade = models.CharField(max_length=20)
+    motivo = models.TextField(blank=True, null=True)
+    observacoes = models.TextField(blank=True, null=True)
 
     class Meta:
-        db_table = 'insumo'
+        db_table = 'estoque'
 
     def __str__(self):
-        return self.nome_insumo
-
-class ProdutoFinal(models.Model):
-    nome_produto = models.CharField(max_length=100)
-    classificacao = models.CharField(max_length=50)
-    preco_venda = models.FloatField()
-    quantidade_estoque = models.IntegerField(default=0)
-
-    class Meta:
-        db_table = 'produto_final'
-
-    def __str__(self):
-        return self.nome_produto
+        return self.lote_id.cultura

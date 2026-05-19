@@ -1,10 +1,11 @@
 from django.db import models
+
+from funcionarios.models import Funcionario
 from lotePlantio.models import LotePlantio
-from pedido.models import ProdutoFinal
 
 class Colheita(models.Model):
-    lote = models.ForeignKey(LotePlantio, on_delete=models.CASCADE)
-    produto_final = models.ForeignKey(ProdutoFinal, on_delete=models.CASCADE)
+    lote_id = models.ForeignKey(LotePlantio, on_delete=models.CASCADE)
+    funcionario_id = models.ForeignKey(Funcionario, on_delete=models.CASCADE)
     data_colheita = models.DateField(auto_now_add=True)
     quantidade_colhida = models.FloatField()
     quantidade_perda = models.FloatField(default=0.0)
