@@ -7,14 +7,17 @@ from lotePlantio.models import LotePlantio
 class Estoque(models.Model):
     lote_id = models.ForeignKey(LotePlantio, on_delete=models.CASCADE)
     funcionario_id = models.ForeignKey(Funcionario, on_delete=models.CASCADE)
-    data_movimentacao = models.DateField(auto_now_add=True)
+    data_movimentacao = models.DateTimeField(auto_now_add=True)
 
     MOVIMENTACAO_CHOICES = [
-        ('ENTRADA', 'Entrada'),
-        ('SAIDA', 'Saída')
+        ('Entrada', 'Entrada'),
+        ('Saída', 'Saída'),
+        ('Perda', 'Perda'),
+        ('Ajuste', 'Ajuste')
     ]
-    tipo_movimentacao = models.CharField(max_length=10, choices=MOVIMENTACAO_CHOICES)
-    quantidade = models.IntegerField()
+    tipo_movimentacao = models.CharField(max_length=15, choices=MOVIMENTACAO_CHOICES)
+
+    quantidade = models.FloatField()
     unidade = models.CharField(max_length=20)
     motivo = models.TextField(blank=True, null=True)
     observacoes = models.TextField(blank=True, null=True)
@@ -23,4 +26,4 @@ class Estoque(models.Model):
         db_table = 'estoque'
 
     def __str__(self):
-        return self.lote_id.cultura
+        return f"Movimentação Lote {self.lote.id} - {self.tipo_movimentacao}"
