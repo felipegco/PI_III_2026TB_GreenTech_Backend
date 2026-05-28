@@ -7,7 +7,7 @@ class FuncionarioSerializer(serializers.ModelSerializer):
     email = serializers.EmailField(source='usuario.email', read_only=True)
     data_entrada = serializers.DateTimeField(source='usuario.date_joined', read_only=True)
 
-    cargo_display = serializers.CharField(source='get_cargo_display', read_only=True)
+    cargo_display = serializers.SerializerMethodField()
     is_gerente = serializers.SerializerMethodField()
     is_admin = serializers.SerializerMethodField()
 
