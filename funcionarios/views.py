@@ -5,6 +5,8 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from django.contrib.auth import authenticate
 from rest_framework_simplejwt.tokens import RefreshToken
+from django.contrib.admin.models import LogEntry
+import json
 
 from .models import Funcionario
 from .serializers import FuncionarioSerializer, AlterarSenhaSerializer
@@ -103,3 +105,92 @@ class LogoutView(APIView):
                 {"error": "Token inválido ou já expirado."},
                 status=status.HTTP_400_BAD_REQUEST
             )
+
+
+class AuditoriaGeralView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        user = request.user
+
+        # Barreira de Segurança
+        if not user.is_superuser and not user.is_staff:
+            return Response(
+                {"error": "Acesso negado. Requer privilégios de auditoria."},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        logs = LogEntry.objects.all().select_related('content_type', 'user').order_by('-action_time')[:200]
+
+        # 1. Dicionário para traduzir o nome das tabelas/módulos
+        modulos_traduzidos = {
+            'user': 'Usuário do Sistema',
+            'group': 'Grupo de Acesso',
+            'funcionario': 'Funcionário',
+            'loteplantio': 'Lote de Plantio',
+            'cultura': 'Cultura',
+            'estoque': 'Estoque / Inventário',
+            'mesa': 'Mesa de Cultivo',
+            'estufa': 'Estufa',
+            'colheita': 'Colheita',
+        }
+
+        dados_auditoria = []
+        for log in logs:
+            # Definindo a Ação
+            if log.action_flag == 1:
+                acao = "ADICIONOU"
+            elif log.action_flag == 2:
+                acao = "MODIFICOU"
+            else:
+                acao = "DELETOU"
+
+            # Aplicando a tradução do módulo
+            modelo_raw = log.content_type.model.lower() if log.content_type else "desconhecido"
+            modulo_amigavel = modulos_traduzidos.get(modelo_raw, modelo_raw.upper())
+
+            # 2. Parseando o JSON do Django Admin para um texto legível
+            detalhes = log.change_message
+            if detalhes:
+                try:
+                    parsed_msg = json.loads(detalhes)
+                    if isinstance(parsed_msg, list):
+                        mensagens_legiveis = []
+                        for item in parsed_msg:
+                            if 'added' in item:
+                                mensagens_legiveis.append("Criou o registro inicial.")
+                            elif 'changed' in item:
+                                campos = item['changed'].get('fields', [])
+                                if campos:
+                                    campos_traduzidos = [c.capitalize() for c in campos]
+                                    mensagens_legiveis.append(f"Alterou os campos: {', '.join(campos_traduzidos)}")
+                                else:
+                                    mensagens_legiveis.append("Modificou o registro.")
+                            elif 'deleted' in item:
+                                mensagens_legiveis.append("Excluiu o registro.")
+
+                        # Junta as mensagens formatadas
+                        detalhes = " | ".join(mensagens_legiveis) if mensagens_legiveis else detalhes
+                except Exception:
+                    # Se falhar ao ler como JSON, mantém o texto original
+                    pass
+            else:
+                # Fallback caso não haja nenhuma mensagem
+                if acao == "ADICIONOU":
+                    detalhes = "Criou o registro inicial."
+                elif acao == "DELETOU":
+                    detalhes = "Excluiu o registro."
+                else:
+                    detalhes = "Alteração não detalhada."
+
+            dados_auditoria.append({
+                "id_log": log.id,
+                "usuario": log.user.username if log.user else "Sistema",
+                "acao": acao,
+                "tabela_afetada": modulo_amigavel,
+                "registro_afetado": log.object_repr,
+                "detalhes": detalhes,
+                "data_hora": log.action_time
+            })
+
+        return Response(dados_auditoria, status=status.HTTP_200_OK)
