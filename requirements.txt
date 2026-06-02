@@ -1,4 +1,6 @@
 asgiref==3.11.1
+certifi==2026.5.20
+charset-normalizer==3.4.7
 Django==4.2.11
 django-cors-headers==4.9.0
 django-stubs==4.2.7
@@ -6,9 +8,16 @@ django-stubs-ext==4.2.7
 djangorestframework==3.15.2
 djangorestframework-stubs==3.14.5
 djangorestframework_simplejwt==5.5.1
+idna==3.16
 psycopg2-binary==2.9.11
 PyJWT==2.12.1
 python-dotenv==1.2.1
+requests==2.32.5
 sqlparse==0.5.5
+tomli==2.4.1
+types-pytz==2025.2.0.20251108
 types-PyYAML==6.0.12.20250915
+types-requests==2.32.4.20260107
 typing_extensions==4.15.0
+urllib3==2.6.3
+whitenoise==6.11.0
