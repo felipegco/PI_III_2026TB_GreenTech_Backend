@@ -3,8 +3,7 @@ from rest_framework.routers import DefaultRouter
 from .views import CulturaViewSet
 
 router = DefaultRouter()
-router.register(r'cultura', CulturaViewSet)
-
+router.register(r'cultura', CulturaViewSet, basename='cultura')
 urlpatterns = [
     path('', include(router.urls)),
 ]
