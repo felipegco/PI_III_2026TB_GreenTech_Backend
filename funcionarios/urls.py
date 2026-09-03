@@ -6,13 +6,13 @@ from .views import FuncionariosViewSet, LogoutView, AuditoriaGeralView
 router = DefaultRouter()
 router.register(r'funcionarios', FuncionariosViewSet)
 
+# funcionarios/urls.py
 urlpatterns = [
     path('funcionarios/auditoria/', AuditoriaGeralView.as_view(), name='auditoria-geral'),
-
     path('', include(router.urls)),
 
     # 3. ROTAS DE AUTENTICAÇÃO
-    path('login/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
+    path('token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),   # era 'login/'
     path('token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     path('logout/', LogoutView.as_view(), name='auth_logout'),
 ]

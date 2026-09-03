@@ -20,4 +20,8 @@ class Funcionario(models.Model):
         db_table = 'funcionarios'
 
     def __str__(self):
-        return f"{self.nome_completo} ({self.get_cargo_display()})"
+        if self.usuario:
+            grupo = self.usuario.groups.first()
+            cargo = grupo.name if grupo else "Sem Cargo"
+            return f"{self.nome_completo} ({cargo})"
+        return self.nome_completo
