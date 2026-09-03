@@ -107,11 +107,11 @@ WSGI_APPLICATION = 'GrennTech_backend.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'greentech_db', # O nome da base de dados que irá criar
-        'USER': 'Felipe',   # O seu utilizador do sistema/PostgreSQL
-        'PASSWORD': '',
-        'HOST': '127.0.0.1',
-        'PORT': '5432',
+        'NAME': os.getenv('POSTGRES_DB', 'greentech_db'),
+        'USER': os.getenv('POSTGRES_USER', 'greentech'),
+        'PASSWORD': os.getenv('POSTGRES_PASSWORD', 'greentech'),
+        'HOST': os.getenv('POSTGRES_HOST', '127.0.0.1'),
+        'PORT': os.getenv('POSTGRES_PORT', '5432'),
     }
 }
 

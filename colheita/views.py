@@ -19,7 +19,6 @@ class ColheitaViewSet(viewsets.ModelViewSet):
     def create(self, request, *args, **kwargs):
         dados = request.data.copy()
 
-        # 1. Identifica o funcionário logado
         try:
             funcionario = Funcionario.objects.get(usuario=request.user)
             dados['funcionario_id'] = funcionario.id
@@ -27,12 +26,10 @@ class ColheitaViewSet(viewsets.ModelViewSet):
             funcionario = Funcionario.objects.first()
             dados['funcionario_id'] = funcionario.id
 
-        # 2. Salva o registro de Colheita Oficial
         serializer = self.get_serializer(data=dados)
         serializer.is_valid(raise_exception=True)
         self.perform_create(serializer)
 
-        # Prepara as variáveis para a automação
         lote = LotePlantio.objects.get(id=dados['lote_id'])
         qtd_colhida = float(dados.get('quantidade_colhida', 0))
         qtd_perda = float(dados.get('quantidade_perda', 0))

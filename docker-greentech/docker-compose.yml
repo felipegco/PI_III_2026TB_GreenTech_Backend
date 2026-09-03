@@ -1,0 +1,51 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: greentech_db
+      POSTGRES_USER: greentech
+      POSTGRES_PASSWORD: greentech
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U greentech -d greentech_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build: ..
+    restart: unless-stopped
+    environment:
+      SECRET_KEY: troque-esta-chave-em-producao
+      POSTGRES_DB: greentech_db
+      POSTGRES_USER: greentech
+      POSTGRES_PASSWORD: greentech
+      POSTGRES_HOST: db
+      POSTGRES_PORT: 5432
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+    volumes:
+      - ..:/app
+
+  frontend:
+    build: ${FRONTEND_PATH}
+    restart: unless-stopped
+    environment:
+      VITE_API_TARGET: http://backend:8000
+    depends_on:
+      - backend
+    ports:
+      - "5173:5173"
+    volumes:
+      - ${FRONTEND_PATH}:/app
+      - /app/node_modules
+
+volumes:
+  pgdata:
