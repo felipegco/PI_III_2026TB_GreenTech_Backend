@@ -62,6 +62,7 @@ INSTALLED_APPS = [
     'estoque',
     'estufa',
     'funcionarios',
+    'insumo',
     'lotePlantio',
     'mesa',
     'registroClima',

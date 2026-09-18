@@ -10,6 +10,7 @@ from django.db import transaction
 from .models import Estoque
 from .serializers import EstoqueSerializer
 from .ocr_utils import extrair_texto_arquivo, extrair_dados_nota, NotaFiscalOcrError
+from insumo.models import Insumo, MovimentacaoInsumo
 
 
 class EstoqueViewSet(viewsets.ModelViewSet):
@@ -82,6 +83,10 @@ class OcrNotaFiscalView(APIView):
 
     A extração é feita por regras/regex simples (ver estoque/ocr_utils.py),
     sem motor de OCR de imagem. Ver limitações no topo daquele arquivo.
+
+    Observação: esta view NÃO classifica os itens como insumo ou cultura —
+    essa decisão é feita pelo usuário na tela de revisão manual (RF11) e
+    enviada no campo "tipo" de cada item ao chamar /confirmar-lote-nf/.
     """
     permission_classes = [IsAuthenticated]
     parser_classes = [MultiPartParser, FormParser]
@@ -107,25 +112,44 @@ class ConfirmarLoteNfView(APIView):
     """
     POST /api/estoque/confirmar-lote-nf/
 
-    Recebe o mesmo formato devolvido por /estoque/ocr-nota-fiscal/ (ou
-    editado manualmente pelo usuário na tela) e efetiva a entrada em
-    estoque:
+    Recebe o mesmo formato devolvido por /estoque/ocr-nota-fiscal/, já
+    revisado e classificado manualmente pelo usuário na tela (RF11). Cada
+    item DEVE trazer um campo "tipo" com valor "insumo" ou "cultura":
 
-    - Para cada item, tenta encontrar uma Cultura já cadastrada cujo nome
-      combine com a descrição do item (comparação case-insensitive, por
-      substring nos dois sentidos).
-    - Se encontrar a Cultura, procura um LotePlantio existente dela (em
-      estoque/disponível) e soma a quantidade recebida a esse lote.
-    - Se não encontrar Cultura nem Lote correspondentes, CRIA
-      automaticamente uma nova Cultura e um novo LotePlantio para o item
-      (comportamento definido para este fluxo de importação por NF).
-    - Cada item gera um registro de movimentação em Estoque (tipo Entrada).
+        {
+            "numero": "000.142.891",
+            "fornecedor": "AgroQuímica Soluções Rurais Ltda",
+            "dataEmissao": "2026-09-01",
+            "itens": [
+                {"descricao": "Nitrato de Cálcio", "quantidade": 50, "unidade": "kg", "tipo": "insumo"},
+                {"descricao": "Alface Crespa", "quantidade": 200, "unidade": "un", "tipo": "cultura"}
+            ]
+        }
+
+    Comportamento por tipo de item:
+
+    - tipo == "insumo": busca (ou cria) um Insumo pelo nome e soma a
+      quantidade recebida a ele, registrando uma MovimentacaoInsumo do tipo
+      Entrada. NUNCA cria Cultura nem LotePlantio para esses itens — é
+      exatamente essa mistura que fazia produtos químicos aparecerem como
+      lotes "prontos para colheita" no frontend.
+
+    - tipo == "cultura": mantém o comportamento original —
+        - Tenta encontrar uma Cultura já cadastrada cujo nome combine com a
+          descrição do item (comparação case-insensitive, por substring nos
+          dois sentidos).
+        - Se encontrar a Cultura, procura um LotePlantio existente dela (em
+          estoque/disponível) e soma a quantidade recebida a esse lote.
+        - Se não encontrar Cultura nem Lote correspondentes, CRIA
+          automaticamente uma nova Cultura e um novo LotePlantio para o item.
+        - Gera um registro de movimentação em Estoque (tipo Entrada).
 
     Tudo roda dentro de uma transação: se algo falhar, nada é gravado.
     """
     permission_classes = [IsAuthenticated]
 
     MESA_PLACEHOLDER_ID = 'NF-AUTO'
+    TIPOS_VALIDOS = ('insumo', 'cultura')
 
     @transaction.atomic
     def post(self, request, *args, **kwargs):
@@ -162,10 +186,17 @@ class ConfirmarLoteNfView(APIView):
             descricao = (item.get('descricao') or '').strip()
             quantidade = item.get('quantidade')
             unidade = (item.get('unidade') or '').strip() or 'un'
+            tipo_item = (item.get('tipo') or '').strip().lower()
 
             if not descricao or quantidade in (None, ''):
                 return Response(
                     {"error": f"Item {indice + 1} inválido: 'descricao' e 'quantidade' são obrigatórios."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            if tipo_item not in self.TIPOS_VALIDOS:
+                return Response(
+                    {"error": f"Item {indice + 1} inválido: informe 'tipo' como 'insumo' ou 'cultura'."},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
@@ -177,6 +208,15 @@ class ConfirmarLoteNfView(APIView):
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
+            if tipo_item == 'insumo':
+                resultados.append(
+                    self._processar_insumo(
+                        descricao, quantidade, unidade, funcionario, numero_nf, fornecedor_nf
+                    )
+                )
+                continue
+
+            # tipo_item == 'cultura' — fluxo original, sem alterações de comportamento
             cultura = self._encontrar_cultura(Cultura, descricao)
             criou_cultura = False
             if cultura is None:
@@ -207,6 +247,7 @@ class ConfirmarLoteNfView(APIView):
             )
 
             resultados.append({
+                "tipo": "cultura",
                 "descricao": descricao,
                 "quantidade": quantidade,
                 "unidade": unidade,
@@ -227,6 +268,42 @@ class ConfirmarLoteNfView(APIView):
             },
             status=status.HTTP_201_CREATED,
         )
+
+    @staticmethod
+    def _processar_insumo(descricao, quantidade, unidade, funcionario, numero_nf, fornecedor_nf):
+        """
+        Entrada de item classificado como insumo (fertilizante, defensivo,
+        substrato etc). Nunca cria Cultura nem LotePlantio.
+        """
+        insumo, _criado = Insumo.objects.get_or_create(
+            nome__iexact=descricao,
+            defaults={
+                'nome': descricao[:150],
+                'unidade': unidade,
+                'fornecedor': fornecedor_nf,
+            },
+        )
+        insumo.quantidade_atual = (insumo.quantidade_atual or 0) + quantidade
+        insumo.save()
+
+        MovimentacaoInsumo.objects.create(
+            insumo_id=insumo,
+            funcionario_id=funcionario,
+            tipo_movimentacao='Entrada',
+            quantidade=quantidade,
+            motivo=f"Entrada via nota fiscal {numero_nf or ''}".strip(),
+            observacoes=f"Fornecedor: {fornecedor_nf}" if fornecedor_nf else None,
+        )
+
+        return {
+            "tipo": "insumo",
+            "descricao": descricao,
+            "quantidade": quantidade,
+            "unidade": unidade,
+            "insumo_id": insumo.id,
+            "insumo_nome": insumo.nome,
+            "insumo_quantidade_atual": insumo.quantidade_atual,
+        }
 
     @staticmethod
     def _parse_data(valor):
