@@ -36,6 +36,7 @@ services:
 
   frontend:
     build: ${FRONTEND_PATH}
+    command: sh -c "npm install && npm run dev -- --host 0.0.0.0"
     restart: unless-stopped
     environment:
       VITE_API_TARGET: http://backend:8000
