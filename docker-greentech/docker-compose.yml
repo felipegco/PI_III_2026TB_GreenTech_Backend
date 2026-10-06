@@ -1,4 +1,19 @@
 services:
+  atualizar-repos:
+    image: alpine/git
+    restart: "no"
+    entrypoint: ["sh", "-c"]
+    command:
+      - |
+        git config --global --add safe.directory '*'
+        git config --global url."https://github.com/".insteadOf "git@github.com:"
+        echo "→ Backend:"  && (git -C /backend  pull --ff-only || echo "⚠ backend não atualizado")
+        echo "→ Frontend:" && (git -C /frontend pull --ff-only || echo "⚠ frontend não atualizado")
+        exit 0
+    volumes:
+      - ..:/backend
+      - ${FRONTEND_PATH}:/frontend
+
   db:
     image: postgres:16-alpine
     restart: unless-stopped
@@ -29,6 +44,8 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      atualizar-repos:
+        condition: service_completed_successfully
     ports:
       - "8000:8000"
     volumes:
@@ -41,7 +58,10 @@ services:
     environment:
       VITE_API_TARGET: http://backend:8000
     depends_on:
-      - backend
+      backend:
+        condition: service_started
+      atualizar-repos:
+        condition: service_completed_successfully
     ports:
       - "5173:5173"
     volumes:
