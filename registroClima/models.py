@@ -1,3 +1,4 @@
+from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 from django.utils import timezone
 from mesa.models import Mesa
@@ -7,8 +8,23 @@ class RegistroClima(models.Model):
     data_registro = models.DateTimeField(default=timezone.now)
     temperatura = models.DecimalField(max_digits=5, decimal_places=2)
     umidade = models.DecimalField(max_digits=10, decimal_places=2)
-    luminosidade = models.DecimalField(max_digits=5, decimal_places=2)
+    # Em lux: estufas passam facilmente de 50.000 lux em dia de sol
+    luminosidade = models.DecimalField(max_digits=8, decimal_places=2)
     ventilacao = models.IntegerField()
+
+    # Sensores adicionais (opcionais para não invalidar leituras antigas)
+    umidade_solo = models.DecimalField(
+        max_digits=5, decimal_places=2, blank=True, null=True,
+        validators=[MinValueValidator(0), MaxValueValidator(100)],
+    )
+    co2 = models.DecimalField(
+        max_digits=7, decimal_places=2, blank=True, null=True,
+        validators=[MinValueValidator(0)],
+    )
+    ph = models.DecimalField(
+        max_digits=4, decimal_places=2, blank=True, null=True,
+        validators=[MinValueValidator(0), MaxValueValidator(14)],
+    )
     observacoes = models.TextField(blank=True, null=True)
 
     def __str__(self):
@@ -17,6 +33,7 @@ class RegistroClima(models.Model):
 
     class Meta:
         db_table = 'Registro_Clima'
+        ordering = ['-data_registro']
 
 
 class RegistroIrrigacao(models.Model):
@@ -38,3 +55,4 @@ class RegistroIrrigacao(models.Model):
 
     class Meta:
         db_table = 'Registro_Irrigacao'
+        ordering = ['-data_registro']

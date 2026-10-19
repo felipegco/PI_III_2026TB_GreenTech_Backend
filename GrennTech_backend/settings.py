@@ -154,6 +154,9 @@ STATIC_URL = 'static/'
 
 CORS_ALLOW_ALL_ORIGINS = True
 
+# Chave usada pelos sensores (reais ou simulados) no header "Authorization: Api-Key <chave>"
+IOT_API_KEY = os.getenv('IOT_API_KEY')
+
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
         'rest_framework_simplejwt.authentication.JWTAuthentication',

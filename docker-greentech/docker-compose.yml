@@ -36,6 +36,7 @@ services:
     restart: unless-stopped
     environment:
       SECRET_KEY: troque-esta-chave-em-producao
+      IOT_API_KEY: ${IOT_API_KEY:-greentech-iot-dev}
       POSTGRES_DB: greentech_db
       POSTGRES_USER: greentech
       POSTGRES_PASSWORD: greentech
