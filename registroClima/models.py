@@ -25,6 +25,8 @@ class RegistroClima(models.Model):
         max_digits=4, decimal_places=2, blank=True, null=True,
         validators=[MinValueValidator(0), MaxValueValidator(14)],
     )
+    # True quando a leitura veio do simulador, e não de um sensor físico
+    simulado = models.BooleanField(default=False)
     observacoes = models.TextField(blank=True, null=True)
 
     def __str__(self):
@@ -48,6 +50,8 @@ class RegistroIrrigacao(models.Model):
     status_atual = models.CharField(max_length=10, choices=STATUS_CHOICES, default='inativa')
     fluxo_l_min = models.DecimalField(max_digits=5, decimal_places=2, default=0.0)
     consumo_ciclo_l = models.DecimalField(max_digits=6, decimal_places=2, default=0.0)
+    # True quando o registro veio do simulador, e não de uma válvula física
+    simulado = models.BooleanField(default=False)
     observacoes = models.TextField(blank=True, null=True)
 
     def __str__(self):

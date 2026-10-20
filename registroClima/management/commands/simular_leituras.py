@@ -1,14 +1,13 @@
 import json
 import random
 import time
-import urllib.error
-import urllib.request
 
 from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
 
 from lotePlantio.models import LotePlantio
 from mesa.models import Mesa
+from registroClima.simulacao import PREFIXO_SIMULADO, enviar_para_api
 
 # Faixa usada quando a mesa não tem lote ativo com cultura vinculada
 FAIXA_PADRAO = {'temp_min': 16.0, 'temp_max': 30.0, 'umidade_ideal': 70.0}
@@ -65,7 +64,8 @@ def gerar_leitura(mesa_id, faixa, cenario, rng=random):
         'umidade_solo': round(umidade_solo, 2),
         'co2': round(rng.uniform(400, 900), 2),
         'ph': round(rng.uniform(5.8, 6.8), 2),
-        'observacoes': f'Leitura simulada ({cenario})',
+        'simulado': True,
+        'observacoes': f'{PREFIXO_SIMULADO} Leitura gerada pelo simulador (cenário {cenario})',
     }
 
 
@@ -117,20 +117,11 @@ class Command(BaseCommand):
             self.stdout.write('\nSimulação interrompida.')
 
     def _enviar(self, endpoint, api_key, leitura, mesa):
-        requisicao = urllib.request.Request(
-            endpoint,
-            data=json.dumps(leitura).encode(),
-            headers={'Content-Type': 'application/json', 'Authorization': f'Api-Key {api_key}'},
-            method='POST',
-        )
-        try:
-            with urllib.request.urlopen(requisicao, timeout=10) as resposta:
-                self.stdout.write(self.style.SUCCESS(
-                    f'[{resposta.status}] {mesa.identificacao}: {leitura["temperatura"]} °C, '
-                    f'umidade {leitura["umidade"]} %, solo {leitura["umidade_solo"]} %'
-                ))
-        except urllib.error.HTTPError as erro:
-            corpo = erro.read().decode(errors='replace')
-            self.stderr.write(self.style.ERROR(f'[{erro.code}] {mesa.identificacao}: {corpo}'))
-        except urllib.error.URLError as erro:
-            raise CommandError(f'Não foi possível conectar em {endpoint}: {erro.reason}')
+        codigo, corpo = enviar_para_api(endpoint, api_key, leitura)
+        if codigo == 201:
+            self.stdout.write(self.style.SUCCESS(
+                f'[{codigo}] {mesa.identificacao}: {leitura["temperatura"]} °C, '
+                f'umidade {leitura["umidade"]} %, solo {leitura["umidade_solo"]} %'
+            ))
+        else:
+            self.stderr.write(self.style.ERROR(f'[{codigo}] {mesa.identificacao}: {corpo}'))

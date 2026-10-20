@@ -12,12 +12,16 @@ from cultura.models import Cultura
 from estufa.models import Estufa
 from lotePlantio.models import LotePlantio
 from mesa.models import Mesa
+from registroClima.management.commands.simular_irrigacao import (
+    decidir, estado_atual, gerar_registro, valvula_da_mesa,
+)
 from registroClima.management.commands.simular_leituras import (
     FAIXA_PADRAO, faixa_da_mesa, gerar_leitura,
 )
-from registroClima.models import RegistroClima
+from registroClima.models import RegistroClima, RegistroIrrigacao
 
 URL_INGESTAO = '/api/clima/receber_dados_iot/'
+URL_IRRIGACAO = '/api/irrigacao/atualizar_status/'
 
 
 def leitura_valida(mesa, **extra):
@@ -45,6 +49,8 @@ class IngestaoIotTests(APITestCase):
         registro = RegistroClima.objects.get()
         self.assertEqual(float(registro.umidade_solo), 55)
         self.assertEqual(float(registro.luminosidade), 32000)
+        # Sensor físico não envia o campo, então a leitura não é marcada como simulada
+        self.assertFalse(registro.simulado)
 
     def test_recusa_chave_errada_ou_ausente(self):
         self.assertEqual(self._enviar(leitura_valida(self.mesa), chave='outra').status_code, 401)
@@ -141,9 +147,69 @@ class SimuladorLeiturasTests(APITestCase):
             leitura = gerar_leitura(self.mesa.pk, FAIXA_PADRAO, cenario, random.Random(2))
             resp = self.client.post(URL_INGESTAO, leitura, format='json', HTTP_AUTHORIZATION='Api-Key chave-teste')
             self.assertEqual(resp.status_code, 201, resp.data)
+        self.assertFalse(RegistroClima.objects.filter(simulado=False).exists())
+        self.assertTrue(all(r.observacoes.startswith('[SIMULADO]') for r in RegistroClima.objects.all()))
 
     def test_dry_run_nao_envia_nada(self):
         saida = StringIO()
         call_command('simular_leituras', '--dry-run', '--seed', '3', stdout=saida)
         self.assertIn('"mesa_id": %d' % self.mesa.pk, saida.getvalue())
         self.assertFalse(RegistroClima.objects.exists())
+
+
+class SimuladorIrrigacaoTests(APITestCase):
+
+    def setUp(self):
+        estufa = Estufa.objects.create(nome_setor='Estufa A', tipo_cultivo='Hidroponia', capacidade_maxima=100)
+        self.mesa = Mesa.objects.create(estufa=estufa, identificacao='M1', capacidade_maxima=10)
+
+    def _leitura_solo(self, umidade_solo):
+        RegistroClima.objects.create(
+            mesa_id=self.mesa, temperatura=22, umidade=65, luminosidade=30000, ventilacao=30,
+            umidade_solo=umidade_solo,
+        )
+
+    def test_decide_com_histerese(self):
+        self.assertEqual(decidir(30, 'inativa')[0], 'ativa')
+        self.assertEqual(decidir(80, 'ativa')[0], 'inativa')
+        # Entre os limites o estado anterior é mantido
+        self.assertEqual(decidir(50, 'ativa')[0], 'ativa')
+        self.assertEqual(decidir(50, 'inativa')[0], 'inativa')
+        self.assertEqual(decidir(None, 'ativa')[0], 'inativa')
+
+    def test_modos_forcados_ignoram_o_solo(self):
+        self.assertEqual(decidir(90, 'inativa', 'abrir')[0], 'ativa')
+        self.assertEqual(decidir(10, 'ativa', 'fechar')[0], 'inativa')
+
+    def test_estado_usa_ultima_leitura_do_solo_e_ultima_valvula(self):
+        self.assertEqual(estado_atual(self.mesa), ('inativa', None))
+        self.assertEqual(valvula_da_mesa(self.mesa), f'VLV-{self.mesa.pk:02d}')
+        self._leitura_solo(25)
+        RegistroIrrigacao.objects.create(mesa_id=self.mesa, valvula_id='VLV-A', status_atual='ativa')
+        self.assertEqual(estado_atual(self.mesa), ('ativa', 25.0))
+        self.assertEqual(valvula_da_mesa(self.mesa), 'VLV-A')
+
+    def test_valvula_fechada_nao_tem_vazao_nem_consumo(self):
+        registro = gerar_registro(self.mesa.pk, 'VLV-01', 'inativa', 'teste', 5, random.Random(1))
+        self.assertEqual((registro['fluxo_l_min'], registro['consumo_ciclo_l']), (0.0, 0))
+        aberta = gerar_registro(self.mesa.pk, 'VLV-01', 'ativa', 'teste', 5, random.Random(1))
+        self.assertAlmostEqual(aberta['consumo_ciclo_l'], aberta['fluxo_l_min'] * 5, places=1)
+
+    @override_settings(IOT_API_KEY='chave-teste')
+    def test_registro_gerado_e_aceito_e_marcado_como_simulado(self):
+        self._leitura_solo(20)
+        status, motivo = decidir(*reversed(estado_atual(self.mesa)))
+        registro = gerar_registro(self.mesa.pk, valvula_da_mesa(self.mesa), status, motivo, 5, random.Random(1))
+        resp = self.client.post(URL_IRRIGACAO, registro, format='json', HTTP_AUTHORIZATION='Api-Key chave-teste')
+        self.assertEqual(resp.status_code, 201, resp.data)
+        salvo = RegistroIrrigacao.objects.get()
+        self.assertEqual(salvo.status_atual, 'ativa')
+        self.assertTrue(salvo.simulado)
+        self.assertTrue(salvo.observacoes.startswith('[SIMULADO]'))
+
+    def test_dry_run_nao_envia_nada(self):
+        self._leitura_solo(20)
+        saida = StringIO()
+        call_command('simular_irrigacao', '--dry-run', '--seed', '3', stdout=saida)
+        self.assertIn('"status_atual": "ativa"', saida.getvalue())
+        self.assertFalse(RegistroIrrigacao.objects.exists())
