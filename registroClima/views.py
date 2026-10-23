@@ -6,6 +6,7 @@ from rest_framework import viewsets, status
 from rest_framework.permissions import IsAuthenticated, BasePermission
 from rest_framework.response import Response
 from rest_framework.decorators import action
+from alerta.services import gerar_alertas
 from .models import RegistroClima, RegistroIrrigacao
 from .serializers import RegistroClimaSerializer, RegistroIrrigacaoSerializer
 
@@ -27,6 +28,10 @@ class RegistroClimaViewSet(viewsets.ModelViewSet):
     queryset = RegistroClima.objects.all()
     serializer_class = RegistroClimaSerializer
 
+    def perform_create(self, serializer):
+        # Toda leitura nova, manual ou dos sensores, passa pela verificação de alertas
+        gerar_alertas(serializer.save())
+
     @action(detail=False, methods=['get'])
     def ultimas(self, request):
         """Leitura mais recente de cada mesa, para o dashboard em tempo real."""
@@ -40,7 +45,7 @@ class RegistroClimaViewSet(viewsets.ModelViewSet):
     def receber_dados_iot(self, request):
         serializer = self.get_serializer(data=request.data)
         if serializer.is_valid():
-            serializer.save()
+            self.perform_create(serializer)
             return Response({"status": "Dados de clima registrados com sucesso!"}, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 

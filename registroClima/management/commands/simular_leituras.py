@@ -5,32 +5,16 @@ import time
 from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
 
-from lotePlantio.models import LotePlantio
+from alerta.services import FAIXA_PADRAO, faixa_da_mesa as faixa_e_origem_da_mesa
 from mesa.models import Mesa
 from registroClima.simulacao import PREFIXO_SIMULADO, enviar_para_api
-
-# Faixa usada quando a mesa não tem lote ativo com cultura vinculada
-FAIXA_PADRAO = {'temp_min': 16.0, 'temp_max': 30.0, 'umidade_ideal': 70.0}
 
 CENARIOS = ['normal', 'calor', 'frio', 'ar_seco', 'solo_seco', 'aleatorio']
 
 
 def faixa_da_mesa(mesa):
-    """Limites da cultura do lote ativo mais recente na mesa, ou a faixa padrão."""
-    lote = (
-        LotePlantio.objects.filter(mesa_id=mesa, status=LotePlantio.StatusPlantio.ATIVO)
-        .select_related('cultura_id')
-        .order_by('-data_plantio')
-        .first()
-    )
-    if not lote:
-        return FAIXA_PADRAO
-    cultura = lote.cultura_id
-    return {
-        'temp_min': float(cultura.temperatura_minima),
-        'temp_max': float(cultura.temperatura_maxima),
-        'umidade_ideal': float(cultura.umidade_ideal),
-    }
+    """Mesma faixa usada na geração de alertas, para o cenário normal não disparar alertas."""
+    return faixa_e_origem_da_mesa(mesa)[0]
 
 
 def gerar_leitura(mesa_id, faixa, cenario, rng=random):

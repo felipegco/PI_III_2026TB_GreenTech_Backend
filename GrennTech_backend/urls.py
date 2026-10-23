@@ -12,4 +12,5 @@ urlpatterns = [
     path('api/', include('lotePlantio.urls')),
     path('api/', include('mesa.urls')),
     path('api/', include('registroClima.urls')),
+    path('api/', include('alerta.urls')),
 ]

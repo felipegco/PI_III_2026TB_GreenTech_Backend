@@ -66,7 +66,8 @@ INSTALLED_APPS = [
     'lotePlantio',
     'mesa',
     'registroClima',
-    'authentication'
+    'authentication',
+    'alerta',
 ]
 
 MIDDLEWARE = [
