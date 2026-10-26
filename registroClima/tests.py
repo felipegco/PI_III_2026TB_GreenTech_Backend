@@ -213,3 +213,31 @@ class SimuladorIrrigacaoTests(APITestCase):
         call_command('simular_irrigacao', '--dry-run', '--seed', '3', stdout=saida)
         self.assertIn('"status_atual": "ativa"', saida.getvalue())
         self.assertFalse(RegistroIrrigacao.objects.exists())
+
+
+class PopularDemoTests(APITestCase):
+
+    def test_popula_dados_coerentes_e_marcados_como_simulados(self):
+        from alerta.models import Alerta
+        from insumo.models import Insumo
+
+        call_command('popular_demo', '--dias', '2', stdout=StringIO())
+        self.assertEqual(Mesa.objects.count(), 9)
+        self.assertFalse(RegistroClima.objects.filter(simulado=False).exists())
+        self.assertFalse(RegistroIrrigacao.objects.filter(simulado=False).exists())
+        # Os eventos planejados para o fim do período continuam ativos; os demais já foram resolvidos
+        ativos = Alerta.objects.filter(status='ativo')
+        self.assertLessEqual({('A2', 'temperatura'), ('C1', 'umidade'), ('B2', 'umidade_solo')},
+                             {(a.mesa_id.identificacao, a.parametro) for a in ativos})
+        ultima = RegistroClima.objects.order_by('-data_registro').first().data_registro
+        self.assertFalse(ativos.exclude(atualizado_em=ultima).exists())
+        self.assertFalse(Alerta.objects.filter(status='resolvido', resolvido_por__isnull=True).exists())
+        self.assertEqual(RegistroIrrigacao.objects.filter(valvula_id='VLV-B2').first().status_atual, 'ativa')
+        self.assertFalse(Insumo.objects.filter(quantidade_atual__lt=0).exists())
+
+    def test_nao_sobrescreve_banco_com_dados_sem_limpar(self):
+        call_command('popular_demo', '--dias', '1', stdout=StringIO())
+        with self.assertRaises(Exception):
+            call_command('popular_demo', stdout=StringIO())
+        call_command('popular_demo', '--dias', '1', '--limpar', stdout=StringIO())
+        self.assertEqual(Estufa.objects.count(), 3)
