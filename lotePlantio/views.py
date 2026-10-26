@@ -1,10 +1,13 @@
 from rest_framework import viewsets, status
+from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from django.db import transaction
 
-from .models import LotePlantio
-from .serializers import LotePlantioSerializer
+from estoque.models import Estoque
+from funcionarios.models import Funcionario
+from .models import LotePlantio, STATUS_EM_CULTIVO
+from .serializers import LotePlantioSerializer, RegistrarPerdaSerializer
 
 class LotePlantioViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
@@ -16,25 +19,53 @@ class LotePlantioViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        lote = serializer.save()
+        # Todo plantio começa em cultivo, independente do que o cliente mandar
+        lote = serializer.save(status=LotePlantio.StatusPlantio.ATIVO)
 
         # criação automática do log no Estoque
-        from estoque.models import Estoque
-        from funcionarios.models import Funcionario
-
-        funcionario = Funcionario.objects.first()
         Estoque.objects.create(
             lote_id=lote,
-            funcionario_id=funcionario,
-            tipo_movimentacao='ENTRADA',
+            funcionario_id=Funcionario.do_usuario(request.user),
+            tipo_movimentacao='Entrada',
             quantidade=lote.quantidade,
             unidade=lote.unidade or 'Unidades',
             motivo='Entrada Inicial de Lote',
-            observacoes=f'Fornecedor: {lote.fornecedor}'
+            observacoes=f'Fornecedor: {lote.fornecedor}' if lote.fornecedor else None,
         )
 
         headers = self.get_success_headers(serializer.data)
         return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
+
+    @action(detail=True, methods=['post'])
+    @transaction.atomic
+    def registrar_perda(self, request, pk=None):
+        """Baixa plantas perdidas (praga, doença, clima). Perder o saldo todo encerra o lote como Perdido."""
+        lote = LotePlantio.objects.select_for_update().get(pk=self.get_object().pk)
+        if lote.status not in STATUS_EM_CULTIVO:
+            return Response({'error': 'Só é possível registrar perda de um lote em cultivo.'},
+                            status=status.HTTP_400_BAD_REQUEST)
+
+        entrada = RegistrarPerdaSerializer(data=request.data)
+        entrada.is_valid(raise_exception=True)
+        quantidade = entrada.validated_data.get('quantidade', lote.quantidade)
+        if quantidade > lote.quantidade:
+            return Response({'error': f'O lote tem apenas {lote.quantidade:g} {lote.unidade or "unidades"}.'},
+                            status=status.HTTP_400_BAD_REQUEST)
+
+        Estoque.objects.create(
+            lote_id=lote,
+            funcionario_id=Funcionario.do_usuario(request.user),
+            tipo_movimentacao='Perda',
+            quantidade=quantidade,
+            unidade=lote.unidade or 'Unidades',
+            motivo=entrada.validated_data['motivo'],
+        )
+        lote.quantidade -= quantidade
+        if lote.quantidade <= 0:
+            lote.quantidade = 0
+            lote.status = LotePlantio.StatusPlantio.PERDIDO
+        lote.save()
+        return Response(self.get_serializer(lote).data)
 
     def destroy(self, request, *args, **kwargs):
         is_superuser = request.user.is_superuser

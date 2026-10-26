@@ -19,6 +19,11 @@ class Funcionario(models.Model):
     class Meta:
         db_table = 'funcionarios'
 
+    @classmethod
+    def do_usuario(cls, usuario):
+        """Funcionário ligado ao login; sem vínculo, cai no primeiro cadastrado para não perder o registro."""
+        return cls.objects.filter(usuario=usuario).first() or cls.objects.first()
+
     def __str__(self):
         if self.usuario:
             grupo = self.usuario.groups.first()

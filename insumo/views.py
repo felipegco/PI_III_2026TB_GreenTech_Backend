@@ -67,9 +67,7 @@ class MovimentacaoInsumoViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_403_FORBIDDEN,
             )
 
-        funcionario = Funcionario.objects.filter(usuario=request.user).first()
-        if not funcionario:
-            funcionario = Funcionario.objects.first()
+        funcionario = Funcionario.do_usuario(request.user)
         if funcionario:
             dados['funcionario_id'] = funcionario.id
 

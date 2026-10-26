@@ -23,7 +23,8 @@ class EstoqueViewSet(viewsets.ModelViewSet):
         dados = request.data.copy()
 
         from funcionarios.models import Funcionario
-        funcionario = Funcionario.objects.first()
+        from lotePlantio.models import STATUS_ENCERRADOS
+        funcionario = Funcionario.do_usuario(request.user)
         if funcionario:
             dados['funcionario_id'] = funcionario.id
 
@@ -33,6 +34,12 @@ class EstoqueViewSet(viewsets.ModelViewSet):
         tipo = serializer.validated_data['tipo_movimentacao'].upper()
         qtd = serializer.validated_data['quantidade']
         lote = serializer.validated_data['lote_id']
+
+        if lote.status in STATUS_ENCERRADOS:
+            return Response(
+                {"error": f"O lote #{lote.id} já foi encerrado ({lote.get_status_display()}) e não recebe movimentações."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
         if tipo == 'ENTRADA' or tipo == 'AJUSTE':
             lote.quantidade += qtd
@@ -171,9 +178,7 @@ class ConfirmarLoteNfView(APIView):
         fornecedor_nf = dados.get('fornecedor')
         data_emissao = self._parse_data(dados.get('dataEmissao'))
 
-        funcionario = Funcionario.objects.filter(usuario=request.user).first()
-        if not funcionario:
-            funcionario = Funcionario.objects.first()
+        funcionario = Funcionario.do_usuario(request.user)
         if not funcionario:
             return Response(
                 {"error": "Nenhum funcionário cadastrado para associar à movimentação."},
@@ -359,7 +364,7 @@ class ConfirmarLoteNfView(APIView):
                 estufa=None,
                 identificacao=self.MESA_PLACEHOLDER_ID,
                 capacidade_maxima=0,
-                status_mesa='reservada',
+                status_mesa=Mesa.Status.LIVRE,
                 observacoes="Mesa reservada automaticamente para lotes criados via importação de nota fiscal.",
             )
 

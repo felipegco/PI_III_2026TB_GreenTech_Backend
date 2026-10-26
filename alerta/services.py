@@ -1,4 +1,4 @@
-from lotePlantio.models import LotePlantio
+from lotePlantio.models import STATUS_EM_CULTIVO, LotePlantio
 
 from .models import Alerta
 
@@ -15,13 +15,10 @@ SOLO_MINIMO = 40.0
 SOLO_CRITICO_ABAIXO_DE = 25.0
 SOLO_MAXIMO = 90.0
 
-STATUS_LOTE_EM_CULTIVO = [LotePlantio.StatusPlantio.ATIVO, LotePlantio.StatusPlantio.DISPONIVEL]
-
-
 def faixa_da_mesa(mesa):
     """Limites da cultura do lote mais recente em cultivo na mesa. Devolve (faixa, usou_padrao)."""
     lote = (
-        LotePlantio.objects.filter(mesa_id=mesa, status__in=STATUS_LOTE_EM_CULTIVO)
+        LotePlantio.objects.filter(mesa_id=mesa, status__in=STATUS_EM_CULTIVO)
         .select_related('cultura_id')
         .order_by('-data_plantio', '-id')
         .first()

@@ -15,7 +15,7 @@ class LotePlantio(models.Model):
         EM_ESTOQUE = 'ES', 'Em Estoque'
         ESTOQUE_BAIXO = 'BX', 'Estoque Baixo'
         DISPONIVEL = 'DI', 'Disponível'
-        ATIVO = 'AT', 'Ativo'
+        ATIVO = 'AT', 'Em cultivo'
         COLHIDO = 'CO', 'Colhido'
         PERDIDO = 'PE', 'Perdido'
 
@@ -32,3 +32,14 @@ class LotePlantio(models.Model):
 
     def __str__(self):
         return f"Lote {self.id} - {self.cultura_id}"
+
+
+# Plantio ocupando a mesa. Só muda por ação: colheita (CO) ou registro de perda (PE)
+STATUS_EM_CULTIVO = [LotePlantio.StatusPlantio.ATIVO]
+STATUS_ENCERRADOS = [LotePlantio.StatusPlantio.COLHIDO, LotePlantio.StatusPlantio.PERDIDO]
+# Mudas/produto guardados (entrada por nota fiscal), sem ciclo de plantio
+STATUS_EM_ESTOQUE = [
+    LotePlantio.StatusPlantio.EM_ESTOQUE,
+    LotePlantio.StatusPlantio.ESTOQUE_BAIXO,
+    LotePlantio.StatusPlantio.DISPONIVEL,
+]

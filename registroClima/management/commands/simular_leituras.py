@@ -75,7 +75,7 @@ class Command(BaseCommand):
         if not api_key and not opts['dry_run']:
             raise CommandError('Defina IOT_API_KEY no ambiente ou passe --api-key.')
 
-        mesas = Mesa.objects.all()
+        mesas = Mesa.objects.filter(estufa__isnull=False)
         if opts['mesas']:
             mesas = mesas.filter(id__in=opts['mesas'])
         mesas = list(mesas.order_by('id'))

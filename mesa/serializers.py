@@ -9,10 +9,29 @@ from .models import Mesa
 
 class MesaSerializer(serializers.ModelSerializer):
     estufa_nome = serializers.ReadOnlyField(source='estufa.nome_setor')
+    lote_em_cultivo = serializers.SerializerMethodField()
 
     class Meta:
         model = Mesa
         fields = '__all__'
+
+    def get_lote_em_cultivo(self, obj):
+        lote = obj.lote_em_cultivo()
+        return lote.id if lote else None
+
+    def to_representation(self, instance):
+        dados = super().to_representation(instance)
+        if dados['lote_em_cultivo']:
+            dados['status_mesa'] = Mesa.Status.OCUPADA
+        return dados
+
+    def validate_status_mesa(self, value):
+        # "ocupada" vem do lote em cultivo; à mão só dá para liberar ou colocar em manutenção
+        if value not in (Mesa.Status.LIVRE, Mesa.Status.MANUTENCAO):
+            raise serializers.ValidationError('Escolha "livre" ou "manutencao". A mesa fica ocupada ao receber um plantio.')
+        if value == Mesa.Status.MANUTENCAO and self.instance and self.instance.lote_em_cultivo():
+            raise serializers.ValidationError('A mesa tem um plantio em andamento. Colha ou registre a perda antes da manutenção.')
+        return value
 
     def validate_capacidade_maxima(self, value):
         if value is not None and value < 0:
