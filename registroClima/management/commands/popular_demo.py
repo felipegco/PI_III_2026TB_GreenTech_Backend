@@ -188,7 +188,7 @@ class Command(BaseCommand):
                 mesa.tem_solo = tem_solo
                 mesas[identificacao] = mesa
         a4 = mesas['A4']
-        a4.observacoes = 'Higienização dos perfis após a colheita; sensores desligados até o próximo plantio.'
+        a4.observacoes = 'Perfis higienizados após a colheita de 20/10.'
         a4.save()
         return mesas
 

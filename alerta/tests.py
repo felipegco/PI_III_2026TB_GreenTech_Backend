@@ -162,3 +162,16 @@ class ApiAlertasTests(BaseAlertaTests):
     def test_exige_autenticacao(self):
         self.client.force_authenticate(None)
         self.assertEqual(self.client.get(URL_ALERTAS).status_code, 401)
+
+
+class AvaliacaoDasLeiturasTests(BaseAlertaTests):
+
+    def test_leitura_vem_avaliada_com_a_regra_dos_alertas(self):
+        self.client.force_authenticate(get_user_model().objects.create_user(username='op', password='x'))
+        self.leitura(temperatura=31, umidade_solo=30)
+        self.leitura(minutos_atras=60)
+        normal, critica = sorted(self.client.get('/api/clima/').data, key=lambda l: l['data_registro'])
+        self.assertEqual(normal['avaliacao'], {'status': 'normal', 'parametros': [], 'limite_padrao': False})
+        self.assertEqual(critica['avaliacao']['status'], 'critico')
+        self.assertEqual(critica['avaliacao']['parametros'], ['temperatura', 'umidade_solo'])
+        self.assertEqual(critica['mesa_identificacao'], 'M1')

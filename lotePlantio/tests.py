@@ -138,3 +138,56 @@ class CulturaTests(BaseLoteTests):
         self.assertEqual(self.client.post('/api/cultura/', base, format='json').status_code, 400)
         base.update(temperatura_minima=15, temperatura_maxima=25, tempo_medio_colheita=0)
         self.assertEqual(self.client.post('/api/cultura/', base, format='json').status_code, 400)
+
+
+class TransplanteTests(BaseLoteTests):
+
+    def setUp(self):
+        super().setUp()
+        bercario = Mesa.objects.create(estufa=self.mesa.estufa, identificacao='C2', capacidade_maxima=50)
+        self.mudas = LotePlantio.objects.create(cultura_id=self.alface, mesa_id=bercario, data_plantio=date.today(),
+                                                status='ES', quantidade=6, unidade='BD')
+
+    def test_transplante_baixa_as_mudas_do_estoque(self):
+        resp = self.plantar(lote_origem=self.mudas.pk, quantidade_origem=4)
+        self.assertEqual(resp.status_code, 201)
+        self.mudas.refresh_from_db()
+        self.assertEqual((self.mudas.quantidade, self.mudas.status), (2, 'ES'))
+        self.assertEqual(resp.data['fornecedor'], f'Transplante do lote #{self.mudas.pk} (C2)')
+        saida = Estoque.objects.get(lote_id=self.mudas)
+        self.assertEqual((saida.tipo_movimentacao, saida.quantidade), ('Saída', 4))
+
+    def test_usar_todas_as_mudas_marca_estoque_baixo(self):
+        self.plantar(lote_origem=self.mudas.pk, quantidade_origem=6)
+        self.mudas.refresh_from_db()
+        self.assertEqual((self.mudas.quantidade, self.mudas.status), (0, 'BX'))
+
+    def test_transplante_valida_saldo_cultura_e_quantidade(self):
+        self.assertEqual(self.plantar(lote_origem=self.mudas.pk, quantidade_origem=7).status_code, 400)
+        self.assertEqual(self.plantar(lote_origem=self.mudas.pk).status_code, 400)
+        rucula = Cultura.objects.create(nome_cultura='Rúcula', tempo_medio_colheita=35,
+                                        temperatura_minima=15, temperatura_maxima=25, umidade_ideal=70)
+        self.assertEqual(self.plantar(cultura_id=rucula.pk, lote_origem=self.mudas.pk,
+                                      quantidade_origem=1).status_code, 400)
+        self.assertFalse(LotePlantio.objects.filter(status='AT').exists())
+
+
+class ExclusaoTests(BaseLoteTests):
+
+    def setUp(self):
+        super().setUp()
+        self.client.force_authenticate(get_user_model().objects.create_superuser(username='admin', password='x'))
+
+    def test_so_exclui_lote_sem_historico(self):
+        lote_id = self.plantar().data['id']
+        self.client.post('/api/colheita/', {'lote_id': lote_id, 'quantidade_colhida': 80}, format='json')
+        self.assertEqual(self.client.delete(f'{URL_LOTES}{lote_id}/').status_code, 400)
+        novo = self.plantar().data['id']
+        self.assertEqual(self.client.delete(f'{URL_LOTES}{novo}/').status_code, 204)
+
+    def test_cultura_com_lotes_nao_e_excluida(self):
+        self.plantar()
+        self.assertEqual(self.client.delete(f'/api/cultura/{self.alface.pk}/').status_code, 400)
+        vazia = Cultura.objects.create(nome_cultura='Teste', tempo_medio_colheita=10,
+                                       temperatura_minima=10, temperatura_maxima=20, umidade_ideal=60)
+        self.assertEqual(self.client.delete(f'/api/cultura/{vazia.pk}/').status_code, 204)

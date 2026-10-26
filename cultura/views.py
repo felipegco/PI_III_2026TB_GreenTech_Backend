@@ -1,5 +1,6 @@
-from rest_framework import viewsets
+from rest_framework import status, viewsets
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
 from django.db.models import Sum, F, FloatField, ExpressionWrapper, Case, When, Value
 from django.db.models.functions import Coalesce
 
@@ -40,3 +41,14 @@ class CulturaViewSet(viewsets.ModelViewSet):
         )
 
         return queryset
+
+    def destroy(self, request, *args, **kwargs):
+        cultura = self.get_object()
+        total = cultura.lotes_plantio.count()
+        if total:
+            return Response(
+                {"error": f'"{cultura}" tem {total} lote(s) registrados. Excluir apagaria colheitas e '
+                          f'movimentações do histórico; edite a cultura em vez de excluir.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        return super().destroy(request, *args, **kwargs)
