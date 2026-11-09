@@ -4,9 +4,12 @@ import time
 
 from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
+from django.db import transaction
 
+from configuracao.previsao import previsao_chuva
 from mesa.models import Mesa
-from registroClima.models import RegistroClima, RegistroIrrigacao
+from registroClima.ia.servico import PREFIXO_IA, decidir_mesa, muda_a_valvula
+from registroClima.models import ModoIrrigacao, RegistroClima, RegistroIrrigacao
 from registroClima.simulacao import PREFIXO_SIMULADO, enviar_para_api
 
 # Histerese: abre abaixo do mínimo, fecha acima do máximo e mantém o estado entre os dois,
@@ -14,7 +17,9 @@ from registroClima.simulacao import PREFIXO_SIMULADO, enviar_para_api
 SOLO_ABRE_ABAIXO_DE = 40.0
 SOLO_FECHA_ACIMA_DE = 65.0
 
-MODOS = ['auto', 'abrir', 'fechar']
+# ia: árvore de decisão (RF10), respeitando o modo manual/automático do sistema
+# regra: histerese fixa 40 %/65 %, a lógica anterior à IA
+MODOS = ['ia', 'regra', 'abrir', 'fechar']
 
 
 def valvula_da_mesa(mesa):
@@ -36,7 +41,7 @@ def estado_atual(mesa):
     )
 
 
-def decidir(umidade_solo, status_anterior, modo='auto'):
+def decidir(umidade_solo, status_anterior, modo='regra'):
     """Devolve (novo_status, motivo) a partir da umidade do solo e do estado anterior."""
     if modo == 'abrir':
         return 'ativa', 'abertura forçada no simulador'
@@ -51,6 +56,20 @@ def decidir(umidade_solo, status_anterior, modo='auto'):
     return status_anterior, f'solo em {umidade_solo:.1f} %, dentro da faixa, estado mantido'
 
 
+def decidir_pela_ia(mesa, status_anterior, previsao):
+    """
+    Grava a decisão da árvore e devolve (novo_status, motivo, decisao). No modo automático a válvula
+    segue a IA; no manual a IA só sugere e a válvula fica como está.
+    """
+    decisao = decidir_mesa(mesa, executar=False, previsao=previsao)
+    if decisao is None:
+        return status_anterior, 'sem leitura de umidade do solo, válvula mantida', None
+    rotulo = f'{decisao.get_acao_display()} ({float(decisao.confianca):.0%})'
+    if decisao.modo == ModoIrrigacao.Modo.AUTOMATICO_IA:
+        return ('ativa' if decisao.irrigar else 'inativa'), f'{PREFIXO_IA} {rotulo}. {decisao.justificativa}', decisao
+    return status_anterior, f'{PREFIXO_IA} sugere {rotulo}; modo manual, válvula mantida.', decisao
+
+
 def gerar_registro(mesa_id, valvula_id, status, motivo, duracao_min, rng=random):
     """Monta o payload no formato aceito por /api/irrigacao/atualizar_status/."""
     fluxo = round(rng.uniform(6, 10), 2) if status == 'ativa' else 0.0
@@ -61,7 +80,7 @@ def gerar_registro(mesa_id, valvula_id, status, motivo, duracao_min, rng=random)
         'fluxo_l_min': fluxo,
         'consumo_ciclo_l': round(fluxo * duracao_min, 2),
         'simulado': True,
-        'observacoes': f'{PREFIXO_SIMULADO} {motivo}',
+        'observacoes': f'{PREFIXO_SIMULADO} {motivo}'[:1000],
     }
 
 
@@ -75,8 +94,9 @@ class Command(BaseCommand):
         parser.add_argument('--url', default='http://localhost:8000', help='Endereço base da API.')
         parser.add_argument('--mesa', type=int, action='append', dest='mesas',
                             help='ID da mesa (pode repetir). Padrão: todas as mesas.')
-        parser.add_argument('--modo', choices=MODOS, default='auto',
-                            help='auto decide pela umidade do solo; abrir/fechar forçam o estado.')
+        parser.add_argument('--modo', choices=MODOS, default='ia',
+                            help='ia decide pela árvore de decisão (respeita o modo manual/automático do sistema); '
+                                 'regra usa a histerese fixa de 40 %%/65 %%; abrir/fechar forçam o estado.')
         parser.add_argument('--duracao', type=float, default=5.0,
                             help='Minutos de cada ciclo, usado no cálculo do consumo.')
         parser.add_argument('--ciclos', type=int, default=1, help='Quantas rodadas enviar. 0 = sem fim.')
@@ -104,20 +124,42 @@ class Command(BaseCommand):
         try:
             while opts['ciclos'] == 0 or ciclo < opts['ciclos']:
                 ciclo += 1
+                # A previsão de chuva vale para todas as mesas: consulta uma vez por rodada
+                previsao = previsao_chuva() if opts['modo'] == 'ia' else None
                 for mesa in mesas:
-                    status_anterior, umidade_solo = estado_atual(mesa)
-                    status, motivo = decidir(umidade_solo, status_anterior, opts['modo'])
-                    registro = gerar_registro(
-                        mesa.id, valvula_da_mesa(mesa), status, motivo, opts['duracao'], rng,
-                    )
-                    if opts['dry_run']:
-                        self.stdout.write(json.dumps(registro, ensure_ascii=False))
-                    else:
-                        self._enviar(endpoint, api_key, registro, mesa)
+                    # No dry run as decisões da IA são desfeitas no fim: nada fica gravado
+                    with transaction.atomic():
+                        status_anterior, umidade_solo = estado_atual(mesa)
+                        decisao = None
+                        if opts['modo'] == 'ia':
+                            status, motivo, decisao = decidir_pela_ia(mesa, status_anterior, previsao)
+                            if decisao is None:
+                                # Mesa sem sensor de solo (ex.: hidroponia) não tem válvula para a IA comandar
+                                self.stdout.write(f'{mesa.identificacao}: sem leitura de umidade do solo, ignorada.')
+                                continue
+                        else:
+                            status, motivo = decidir(umidade_solo, status_anterior, opts['modo'])
+                        registro = gerar_registro(
+                            mesa.id, valvula_da_mesa(mesa), status, motivo, opts['duracao'], rng,
+                        )
+                        if opts['dry_run']:
+                            self.stdout.write(json.dumps(registro, ensure_ascii=False))
+                            transaction.set_rollback(True)
+                        elif self._enviar(endpoint, api_key, registro, mesa) and decisao is not None:
+                            self._vincular(decisao, status_anterior, status)
                 if opts['ciclos'] == 0 or ciclo < opts['ciclos']:
                     time.sleep(opts['intervalo'])
         except KeyboardInterrupt:
             self.stdout.write('\nSimulação interrompida.')
+
+    def _vincular(self, decisao, status_anterior, status):
+        """A válvula obedeceu a IA (modo automático, estado mudou): marca a decisão como executada."""
+        if muda_a_valvula(decisao) and status != status_anterior:
+            decisao.registro_irrigacao = (
+                RegistroIrrigacao.objects.filter(mesa_id=decisao.mesa_id).order_by('-data_registro', '-id').first()
+            )
+            decisao.executada = True
+            decisao.save(update_fields=['registro_irrigacao', 'executada'])
 
     def _enviar(self, endpoint, api_key, registro, mesa):
         codigo, corpo = enviar_para_api(endpoint, api_key, registro)
@@ -126,5 +168,6 @@ class Command(BaseCommand):
                 f'[{codigo}] {mesa.identificacao} {registro["valvula_id"]}: {registro["status_atual"]}, '
                 f'{registro["fluxo_l_min"]} L/min, {registro["consumo_ciclo_l"]} L'
             ))
-        else:
-            self.stderr.write(self.style.ERROR(f'[{codigo}] {mesa.identificacao}: {corpo}'))
+            return True
+        self.stderr.write(self.style.ERROR(f'[{codigo}] {mesa.identificacao}: {corpo}'))
+        return False

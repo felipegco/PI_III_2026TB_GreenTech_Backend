@@ -17,8 +17,11 @@ from funcionarios.models import Funcionario
 from insumo.models import Insumo, MovimentacaoInsumo
 from lotePlantio.models import LotePlantio
 from mesa.models import Mesa
-from registroClima.management.commands.simular_irrigacao import decidir
-from registroClima.models import RegistroClima, RegistroIrrigacao
+from configuracao.models import LocalizacaoPropriedade
+from configuracao.previsao import PrevisaoChuva
+from registroClima.ia.modelo import carregar_modelo
+from registroClima.ia.servico import executar_decisao, registrar_decisao
+from registroClima.models import DecisaoIrrigacao, ModoIrrigacao, RegistroClima, RegistroIrrigacao
 from registroClima.simulacao import PREFIXO_SIMULADO
 
 AT, ES, BX, CO, PE = (LotePlantio.StatusPlantio.ATIVO, LotePlantio.StatusPlantio.EM_ESTOQUE,
@@ -121,20 +124,25 @@ class Command(BaseCommand):
         self.mesas = self._criar_estrutura()
         self._criar_lotes()
         self._criar_insumos()
-        leituras, irrigacoes = self._criar_historico_clima(opts['dias'])
+        leituras, irrigacoes, decisoes = self._criar_historico_clima(opts['dias'])
+        # A demonstração mostra a IA no comando das válvulas, ligada pela gerente
+        ModoIrrigacao.objects.update_or_create(pk=1, defaults={
+            'modo': ModoIrrigacao.Modo.AUTOMATICO_IA, 'atualizado_por': User.objects.get(username='carla.mendes'),
+        })
 
         ativos = Alerta.objects.filter(status=Alerta.Status.ATIVO).count()
         self.stdout.write(self.style.SUCCESS(
             f'Demonstração criada: {Estufa.objects.count()} estufas, {Mesa.objects.count()} mesas, '
             f'{LotePlantio.objects.count()} lotes, {Colheita.objects.count()} colheitas, '
             f'{Insumo.objects.count()} insumos, {leituras} leituras, {irrigacoes} registros de irrigação, '
+            f'{decisoes} decisões da IA, '
             f'{Alerta.objects.count()} alertas ({ativos} ativos).'
         ))
         self.stdout.write(f'Usuários de demonstração (senha "{opts["senha"]}"): '
                           + ', '.join(u for _, _, _, u, _ in EQUIPE if u))
 
     def _limpar(self):
-        for modelo in (Alerta, RegistroIrrigacao, RegistroClima, Colheita, Estoque, MovimentacaoInsumo,
+        for modelo in (Alerta, DecisaoIrrigacao, RegistroIrrigacao, RegistroClima, Colheita, Estoque, MovimentacaoInsumo,
                        Insumo, LotePlantio, Mesa, Estufa, Cultura):
             modelo.objects.all().delete()
         # Funcionários ligados a um login (como o do admin) continuam existindo
@@ -281,11 +289,21 @@ class Command(BaseCommand):
             (('C1',), self.agora - timedelta(hours=3), self.agora, 'ar_seco_forte'),
         ]
 
+    def _previsao(self, momento, cidade):
+        """Previsão de chuva das 6 h seguintes: seca no período, com uma frente de chuva ontem."""
+        if self._momento(1, 6) <= momento <= self._momento(1, 18):
+            return PrevisaoChuva(9.5, 85, 6, True, cidade)
+        return PrevisaoChuva(0.0, self.rng.randint(0, 15), 6, True, cidade)
+
     def _criar_historico_clima(self, dias):
         eventos = self._eventos()
         resolvedores = [User.objects.get(username=u) for u in ('rafael.souza', 'bruna.lima', 'carla.mendes')]
         momentos = [self.agora - timedelta(hours=h) for h in range(dias * 24, -1, -1)]
-        total_leituras = total_irrigacoes = 0
+        total_leituras = total_irrigacoes = total_decisoes = 0
+        pacote = carregar_modelo()
+        localizacao = LocalizacaoPropriedade.atual()
+        cidade = str(localizacao) if localizacao else None
+        automatico = ModoIrrigacao.Modo.AUTOMATICO_IA
 
         for identificacao, mesa in self.mesas.items():
             if not mesa.lote_em_cultivo() and identificacao != 'C2':
@@ -350,25 +368,43 @@ class Command(BaseCommand):
 
                 if solo is None:
                     continue
-                novo_estado, motivo = decidir(solo, estado)
-                if novo_estado == 'ativa' and estado == 'inativa':
+                # A árvore de decisão (RF10) comanda a válvula a cada leitura
+                previsao = self._previsao(momento, cidade)
+                decisao = registrar_decisao(
+                    mesa, umidade_solo=solo, temperatura=temperatura, umidade_ar=umidade, valvula_id=valvula,
+                    aberta=estado == 'ativa', previsao=previsao, modo=automatico, leitura=leitura,
+                    simulado=True, agora=momento, pacote=pacote,
+                )
+                total_decisoes += 1
+                if decisao.acao == DecisaoIrrigacao.Acao.ABRIR:
                     fluxo = round(self.rng.uniform(6, 10), 2)
                     duracao = self.rng.randint(15, 22)
-                    self._registrar_irrigacao(mesa, valvula, momento + timedelta(minutes=1), 'ativa', fluxo, 0,
-                                              motivo)
+                    executar_decisao(decisao, fluxo, 0, agora=momento + timedelta(minutes=1))
+                    estado = 'ativa'
                     total_irrigacoes += 1
                     if momento == self.agora:
                         continue  # irrigação em andamento
+                    # Ao fim do ciclo o solo está úmido e a IA manda fechar
                     solo = max(solo + duracao * self.rng.uniform(1.6, 1.9), 65.5 + self.rng.uniform(0, 4))
                     fim = momento + timedelta(minutes=1 + duracao)
-                    self._registrar_irrigacao(mesa, valvula, fim, 'inativa', 0, round(fluxo * duracao, 2),
-                                              decidir(solo, 'ativa')[1])
+                    fechamento = registrar_decisao(
+                        mesa, umidade_solo=solo, temperatura=temperatura, umidade_ar=umidade, valvula_id=valvula,
+                        aberta=True, previsao=previsao, modo=automatico, simulado=True, agora=fim, pacote=pacote,
+                    )
+                    total_decisoes += 1
+                    if fechamento.acao == DecisaoIrrigacao.Acao.FECHAR:
+                        executar_decisao(fechamento, 0, round(fluxo * duracao, 2), agora=fim)
+                        estado = 'inativa'
+                        total_irrigacoes += 1
+                elif decisao.acao == DecisaoIrrigacao.Acao.FECHAR:
+                    executar_decisao(decisao, 0, 0, agora=momento)
+                    estado = 'inativa'
                     total_irrigacoes += 1
                 elif momento == momentos[0]:
-                    self._registrar_irrigacao(mesa, valvula, momento, 'inativa', 0, 0, motivo)
+                    self._registrar_irrigacao(mesa, valvula, momento, 'inativa', 0, 0, 'válvula fechada no início')
                     total_irrigacoes += 1
 
-        return total_leituras, total_irrigacoes
+        return total_leituras, total_irrigacoes, total_decisoes
 
     def _registrar_irrigacao(self, mesa, valvula, quando, status, fluxo, consumo, motivo):
         RegistroIrrigacao.objects.create(

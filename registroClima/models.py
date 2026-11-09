@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 from django.utils import timezone
@@ -60,3 +61,71 @@ class RegistroIrrigacao(models.Model):
     class Meta:
         db_table = 'Registro_Irrigacao'
         ordering = ['-data_registro']
+
+class ModoIrrigacao(models.Model):
+    """Registro único (id 1): no MANUAL a IA só sugere; no AUTOMATICO_IA a decisão aciona a válvula."""
+
+    class Modo(models.TextChoices):
+        MANUAL = 'MANUAL', 'Manual'
+        AUTOMATICO_IA = 'AUTOMATICO_IA', 'Automático (IA)'
+
+    modo = models.CharField(max_length=20, choices=Modo.choices, default=Modo.MANUAL)
+    atualizado_em = models.DateTimeField(auto_now=True)
+    atualizado_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name='+',
+    )
+
+    class Meta:
+        db_table = 'Modo_Irrigacao'
+        verbose_name = 'Modo de irrigação'
+        verbose_name_plural = 'Modo de irrigação'
+
+    def __str__(self):
+        return self.get_modo_display()
+
+    @classmethod
+    def atual(cls):
+        return cls.objects.get_or_create(pk=1)[0]
+
+
+class DecisaoIrrigacao(models.Model):
+    """Decisão da árvore (RF10) para uma válvula, com as entradas usadas e a explicação."""
+
+    class Acao(models.TextChoices):
+        ABRIR = 'abrir', 'Abrir válvula'
+        FECHAR = 'fechar', 'Fechar válvula'
+        MANTER_ABERTA = 'manter_aberta', 'Manter aberta'
+        MANTER_FECHADA = 'manter_fechada', 'Manter fechada'
+
+    mesa_id = models.ForeignKey(Mesa, on_delete=models.CASCADE, related_name='decisoes_irrigacao')
+    valvula_id = models.CharField(max_length=50)
+    data_decisao = models.DateTimeField(default=timezone.now)
+    acao = models.CharField(max_length=20, choices=Acao.choices)
+    irrigar = models.BooleanField()
+    confianca = models.DecimalField(max_digits=5, decimal_places=4)
+    justificativa = models.TextField()
+
+    # Entradas da árvore no momento da decisão
+    leitura = models.ForeignKey(RegistroClima, null=True, blank=True, on_delete=models.SET_NULL, related_name='+')
+    umidade_solo = models.DecimalField(max_digits=5, decimal_places=2)
+    temperatura = models.DecimalField(max_digits=5, decimal_places=2)
+    umidade_ar = models.DecimalField(max_digits=10, decimal_places=2)
+    chuva_prevista_mm = models.DecimalField(max_digits=6, decimal_places=1, default=0)
+    previsao_disponivel = models.BooleanField(default=False)
+    valvula_estava_aberta = models.BooleanField(default=False)
+
+    modo = models.CharField(max_length=20, choices=ModoIrrigacao.Modo.choices)
+    # True quando a decisão virou comando na válvula (RegistroIrrigacao); no manual é só sugestão
+    executada = models.BooleanField(default=False)
+    registro_irrigacao = models.ForeignKey(
+        RegistroIrrigacao, null=True, blank=True, on_delete=models.SET_NULL, related_name='decisoes',
+    )
+    modelo_treinado_em = models.CharField(max_length=40, blank=True, default='')
+    simulado = models.BooleanField(default=False)
+
+    class Meta:
+        db_table = 'Decisao_Irrigacao'
+        ordering = ['-data_decisao', '-id']
+
+    def __str__(self):
+        return f'{self.valvula_id}: {self.get_acao_display()} ({self.confianca:.0%})'

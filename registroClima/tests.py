@@ -210,9 +210,36 @@ class SimuladorIrrigacaoTests(APITestCase):
     def test_dry_run_nao_envia_nada(self):
         self._leitura_solo(20)
         saida = StringIO()
-        call_command('simular_irrigacao', '--dry-run', '--seed', '3', stdout=saida)
+        call_command('simular_irrigacao', '--dry-run', '--modo', 'regra', '--seed', '3', stdout=saida)
         self.assertIn('"status_atual": "ativa"', saida.getvalue())
         self.assertFalse(RegistroIrrigacao.objects.exists())
+
+    def test_ia_no_modo_manual_so_sugere(self):
+        from registroClima.models import DecisaoIrrigacao
+        self._leitura_solo(20)
+        saida = StringIO()
+        call_command('simular_irrigacao', '--dry-run', '--seed', '3', stdout=saida)
+        self.assertIn('"status_atual": "inativa"', saida.getvalue())
+        self.assertIn('[IA] sugere Abrir válvula', saida.getvalue())
+        # Dry run desfaz a decisão gravada
+        self.assertFalse(DecisaoIrrigacao.objects.exists())
+
+    def test_ia_ignora_mesa_sem_sensor_de_solo(self):
+        RegistroClima.objects.create(mesa_id=self.mesa, temperatura=22, umidade=65, luminosidade=1, ventilacao=1)
+        saida = StringIO()
+        call_command('simular_irrigacao', '--dry-run', stdout=saida)
+        self.assertIn('M1: sem leitura de umidade do solo, ignorada.', saida.getvalue())
+        self.assertNotIn('status_atual', saida.getvalue())
+
+    def test_ia_no_modo_automatico_abre(self):
+        from registroClima.models import ModoIrrigacao
+        ModoIrrigacao.objects.create(pk=1, modo=ModoIrrigacao.Modo.AUTOMATICO_IA)
+        self._leitura_solo(20)
+        saida = StringIO()
+        call_command('simular_irrigacao', '--dry-run', '--seed', '3', stdout=saida)
+        self.assertIn('"status_atual": "ativa"', saida.getvalue())
+        self.assertIn('[IA] Abrir válvula', saida.getvalue())
+        self.assertIn('Cidade da propriedade não configurada', saida.getvalue())
 
 
 class PopularDemoTests(APITestCase):
@@ -233,6 +260,24 @@ class PopularDemoTests(APITestCase):
         self.assertFalse(ativos.exclude(atualizado_em=ultima).exists())
         self.assertFalse(Alerta.objects.filter(status='resolvido', resolvido_por__isnull=True).exists())
         self.assertEqual(RegistroIrrigacao.objects.filter(valvula_id='VLV-B2').first().status_atual, 'ativa')
+
+        # Irrigação comandada pela árvore de decisão, no modo automático
+        from registroClima.models import DecisaoIrrigacao, ModoIrrigacao
+        self.assertEqual(ModoIrrigacao.atual().modo, 'AUTOMATICO_IA')
+        ultima_b2 = DecisaoIrrigacao.objects.filter(valvula_id='VLV-B2').first()
+        self.assertEqual((ultima_b2.acao, ultima_b2.executada), ('abrir', True))
+        executadas = DecisaoIrrigacao.objects.filter(executada=True)
+        self.assertTrue(executadas.exists())
+        # Toda válvula aberta pela IA ou continua irrigando agora ou foi fechada pela IA depois
+        for abertura in executadas.filter(acao='abrir'):
+            fechou = executadas.filter(valvula_id=abertura.valvula_id, acao='fechar',
+                                       data_decisao__gt=abertura.data_decisao).exists()
+            ultima = RegistroIrrigacao.objects.filter(valvula_id=abertura.valvula_id).first()
+            self.assertTrue(fechou or ultima.status_atual == 'ativa', abertura.valvula_id)
+        self.assertFalse(executadas.filter(registro_irrigacao__isnull=True).exists())
+        self.assertFalse(DecisaoIrrigacao.objects.filter(simulado=False).exists())
+        # A frente de chuva prevista aparece na explicação de alguma decisão
+        self.assertTrue(DecisaoIrrigacao.objects.filter(chuva_prevista_mm__gt=5).exists())
         self.assertFalse(Insumo.objects.filter(quantidade_atual__lt=0).exists())
 
     def test_nao_sobrescreve_banco_com_dados_sem_limpar(self):

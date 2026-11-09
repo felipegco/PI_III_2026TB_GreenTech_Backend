@@ -58,6 +58,8 @@ services:
     restart: unless-stopped
     environment:
       VITE_API_TARGET: http://backend:8000
+      # Rotas /irrigacao/status/, /decisoes-ia/ e /modo/ prontas (RF10)
+      VITE_FEATURE_IRRIGACAO_IA: "true"
     depends_on:
       backend:
         condition: service_started
