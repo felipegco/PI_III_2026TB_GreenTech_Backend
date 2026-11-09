@@ -13,4 +13,5 @@ urlpatterns = [
     path('api/', include('mesa.urls')),
     path('api/', include('registroClima.urls')),
     path('api/', include('alerta.urls')),
+    path('api/', include('configuracao.urls')),
 ]

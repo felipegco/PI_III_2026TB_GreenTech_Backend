@@ -68,6 +68,7 @@ INSTALLED_APPS = [
     'registroClima',
     'authentication',
     'alerta',
+    'configuracao',
 ]
 
 MIDDLEWARE = [
