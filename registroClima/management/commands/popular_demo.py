@@ -73,18 +73,22 @@ LOTES_PERDIDOS = [
     ('A3', 'Rúcula', 56, 40, 130, 'Infestação de pulgão detectada tarde; lote descartado.'),
 ]
 
-# nome, tipo, unidade, estoque mínimo, fornecedor, dias até vencer, entradas, consumo semanal
+# nome, tipo, unidade, estoque mínimo, fornecedor, dias até vencer, compras (dias atrás, quantidade),
+# consumo por dia útil no início do histórico, fator do consumo no fim (1,6 = consumo 60% maior hoje)
 INSUMOS = [
-    ('Nitrato de Cálcio', 'FE', 'kg', 10, 'AgroNutri Distribuidora', 540, [25, 25, 25], 6.5),
-    ('Nitrato de Potássio', 'FE', 'kg', 8, 'AgroNutri Distribuidora', 600, [25, 10], 2.5),
-    ('Sulfato de Magnésio', 'FE', 'kg', 5, 'AgroNutri Distribuidora', 720, [20], 1.5),
-    ('MAP Purificado', 'FE', 'kg', 5, 'Campo Forte Insumos', 480, [20], 1.2),
-    ('Óleo de Neem', 'DF', 'L', 2, 'BioDefesa Agrícola', 200, [5], 0.4),
-    ('Bacillus thuringiensis', 'DF', 'L', 1, 'BioDefesa Agrícola', 12, [3], 0.2),
-    ('Fibra de Coco', 'SB', 'saco', 10, 'Campo Forte Insumos', None, [40], 3),
-    ('Espuma Fenólica', 'SB', 'placa', 20, 'Hidro Mudas Ltda', None, [60], 7),
-    ('Ácido Fosfórico (correção de pH)', 'OU', 'L', 2, 'AgroNutri Distribuidora', 365, [5, 5], 0.5),
+    ('Nitrato de Cálcio', 'FE', 'kg', 10, 'AgroNutri Distribuidora', 540,
+     [(90, 25), (60, 25), (30, 25), (12, 15)], 1.0, 1.6),
+    ('Nitrato de Potássio', 'FE', 'kg', 8, 'AgroNutri Distribuidora', 600, [(90, 25), (45, 20)], 0.45, 1.2),
+    ('Sulfato de Magnésio', 'FE', 'kg', 5, 'AgroNutri Distribuidora', 720, [(90, 20), (40, 10)], 0.3, 1.0),
+    ('MAP Purificado', 'FE', 'kg', 5, 'Campo Forte Insumos', 480, [(90, 20)], 0.25, 1.0),
+    ('Óleo de Neem', 'DF', 'L', 2, 'BioDefesa Agrícola', 200, [(90, 5), (30, 3)], 0.06, 1.3),
+    ('Bacillus thuringiensis', 'DF', 'L', 1, 'BioDefesa Agrícola', 12, [(90, 3)], 0.04, 1.0),
+    ('Fibra de Coco', 'SB', 'saco', 10, 'Campo Forte Insumos', None, [(90, 40), (20, 10)], 0.5, 1.0),
+    ('Espuma Fenólica', 'SB', 'placa', 20, 'Hidro Mudas Ltda', None, [(90, 60), (50, 30), (15, 20)], 1.2, 1.4),
+    ('Ácido Fosfórico (correção de pH)', 'OU', 'L', 2, 'AgroNutri Distribuidora', 365, [(90, 5), (45, 5)],
+     0.08, 1.0),
 ]
+HISTORICO_INSUMOS_DIAS = 90
 
 # nome, CPF, telefone, usuário, grupo
 EQUIPE = [
@@ -258,24 +262,33 @@ class Command(BaseCommand):
         MovimentacaoInsumo.objects.filter(pk=mov.pk).update(data_movimentacao=quando)
 
     def _criar_insumos(self):
-        for nome, tipo, unidade, minimo, fornecedor, vence_em, entradas, consumo_semanal in INSUMOS:
+        """90 dias de compras e de consumo em dias úteis, base da previsão de fim de estoque (RF09)."""
+        for nome, tipo, unidade, minimo, fornecedor, vence_em, compras, base, fator in INSUMOS:
             insumo = Insumo.objects.create(
                 nome=nome, tipo=tipo, unidade=unidade, estoque_minimo=minimo, fornecedor=fornecedor,
                 validade=self._dia(-vence_em) if vence_em else None,
             )
+            compras = dict(compras)
             saldo = 0.0
-            # Uma compra a cada 30 dias e consumo semanal no preparo da solução nutritiva
-            for i, quantidade in enumerate(entradas):
-                saldo += quantidade
-                self._movimentar_insumo(insumo, 'Entrada', quantidade, self._momento(60 - 30 * i, 9),
-                                        'Compra (nota fiscal)', quem='carla.mendes')
-            for semana in range(8, 0, -1):
-                usado = round(min(consumo_semanal * self.rng.uniform(0.8, 1.2), saldo), 2)
+            for dias_atras in range(HISTORICO_INSUMOS_DIAS, 0, -1):
+                if dias_atras in compras:
+                    saldo += compras[dias_atras]
+                    self._movimentar_insumo(insumo, 'Entrada', compras[dias_atras], self._momento(dias_atras, 7),
+                                            'Compra (nota fiscal)', quem='carla.mendes')
+                if self._dia(dias_atras).weekday() >= 5:
+                    continue  # sem preparo de solução no fim de semana
+                # Consumo cresce em linha reta do início ao fim do histórico, com variação do dia a dia
+                progresso = 1 - dias_atras / HISTORICO_INSUMOS_DIAS
+                usado = round(min(base * (1 + (fator - 1) * progresso) * self.rng.uniform(0.75, 1.25), saldo), 2)
                 if usado <= 0:
                     continue
                 saldo -= usado
-                self._movimentar_insumo(insumo, 'Saída', usado, self._momento(semana * 7 - 3, 7),
+                self._movimentar_insumo(insumo, 'Saída', usado, self._momento(dias_atras, 9),
                                         'Preparo da solução nutritiva' if tipo == 'FE' else 'Uso nas mesas')
+            if nome == 'Óleo de Neem' and saldo > 0.5:
+                saldo -= 0.5
+                self._movimentar_insumo(insumo, 'Perda', 0.5, self._momento(18, 15),
+                                        'Frasco danificado no transporte', quem='bruna.lima')
             insumo.quantidade_atual = round(saldo, 2)
             insumo.save()
 

@@ -16,3 +16,6 @@ typing_extensions==4.15.0
 joblib==1.4.2
 numpy==2.2.6
 scikit-learn==1.6.1
+cmdstanpy==1.3.2
+pandas==3.1.1
+prophet==1.5.0

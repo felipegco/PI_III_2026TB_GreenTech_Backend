@@ -1,10 +1,31 @@
 from rest_framework import viewsets, status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
+from rest_framework.views import APIView
 from django.db import transaction
 
 from .models import Insumo, MovimentacaoInsumo
-from .serializers import InsumoSerializer, MovimentacaoInsumoSerializer
+from .previsao import previsoes
+from .serializers import InsumoSerializer, MovimentacaoInsumoSerializer, PrevisaoEstoqueSerializer
+
+
+class PrevisaoEstoqueView(APIView):
+    """
+    GET /api/estoque/previsao-prophet/ — quando cada insumo deve acabar, mais críticos primeiro.
+    ?recalcular=1 força um novo ajuste; ?limite=N devolve só os N mais críticos.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        recalcular = request.query_params.get('recalcular') in ('1', 'true')
+        limite = request.query_params.get('limite')
+        if limite is not None and (not limite.isdigit() or int(limite) < 1):
+            return Response({'error': 'limite deve ser um número inteiro positivo.'},
+                            status=status.HTTP_400_BAD_REQUEST)
+        resultado = previsoes(recalcular=recalcular)
+        if limite:
+            resultado = resultado[:int(limite)]
+        return Response(PrevisaoEstoqueSerializer(resultado, many=True).data)
 
 
 class InsumoViewSet(viewsets.ModelViewSet):
