@@ -1,6 +1,5 @@
 from rest_framework import viewsets, status
 from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated
 from django.db import transaction
 
 from .models import Colheita
@@ -11,7 +10,6 @@ from estoque.models import Estoque  # <-- Nova importação para automação!
 
 
 class ColheitaViewSet(viewsets.ModelViewSet):
-    permission_classes = [IsAuthenticated]
     queryset = Colheita.objects.all()
     serializer_class = ColheitaSerializer
 

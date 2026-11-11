@@ -1,7 +1,6 @@
 from django.db import models
 
 from cultura.models import Cultura
-from estufa.models import Estufa
 from mesa.models import Mesa
 
 

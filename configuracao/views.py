@@ -1,5 +1,4 @@
 from rest_framework import status
-from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -17,7 +16,6 @@ class LocalizacaoView(APIView):
     GET  /api/configuracao/localizacao/ → {configurada, pode_editar, localizacao}
     PUT  /api/configuracao/localizacao/ → grava a cidade (gerentes e administradores)
     """
-    permission_classes = [IsAuthenticated]
 
     def resposta(self, request, localizacao, codigo=status.HTTP_200_OK):
         return Response({
@@ -41,7 +39,6 @@ class LocalizacaoView(APIView):
 
 class BuscaCidadesView(APIView):
     """GET /api/configuracao/cidades/?q=mogi → cidades brasileiras com coordenadas (Open-Meteo)."""
-    permission_classes = [IsAuthenticated]
 
     def get(self, request):
         termo = (request.query_params.get('q') or '').strip()

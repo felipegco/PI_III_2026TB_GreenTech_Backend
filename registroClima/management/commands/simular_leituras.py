@@ -5,7 +5,7 @@ import time
 from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
 
-from alerta.services import FAIXA_PADRAO, faixa_da_mesa as faixa_e_origem_da_mesa
+from alerta.services import faixa_da_mesa as faixa_e_origem_da_mesa
 from mesa.models import Mesa
 from registroClima.simulacao import PREFIXO_SIMULADO, enviar_para_api
 

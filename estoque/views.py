@@ -3,7 +3,6 @@ from datetime import date
 from rest_framework import viewsets, status
 from rest_framework.views import APIView
 from rest_framework.parsers import MultiPartParser, FormParser
-from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from django.db import transaction
 
@@ -14,7 +13,6 @@ from insumo.models import Insumo, MovimentacaoInsumo
 
 
 class EstoqueViewSet(viewsets.ModelViewSet):
-    permission_classes = [IsAuthenticated]
     queryset = Estoque.objects.all().order_by('-data_movimentacao')
     serializer_class = EstoqueSerializer
 
@@ -95,7 +93,6 @@ class OcrNotaFiscalView(APIView):
     essa decisão é feita pelo usuário na tela de revisão manual (RF11) e
     enviada no campo "tipo" de cada item ao chamar /confirmar-lote-nf/.
     """
-    permission_classes = [IsAuthenticated]
     parser_classes = [MultiPartParser, FormParser]
 
     def post(self, request, *args, **kwargs):
@@ -153,7 +150,6 @@ class ConfirmarLoteNfView(APIView):
 
     Tudo roda dentro de uma transação: se algo falhar, nada é gravado.
     """
-    permission_classes = [IsAuthenticated]
 
     MESA_PLACEHOLDER_ID = 'NF-AUTO'
     TIPOS_VALIDOS = ('insumo', 'cultura')

@@ -1,5 +1,4 @@
 from rest_framework import status, viewsets
-from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from django.db.models import (Case, Count, ExpressionWrapper, F, FloatField, IntegerField, OuterRef, Subquery,
                               Sum, Value, When)
@@ -11,7 +10,6 @@ from .serializers import CulturaSerializer
 
 
 class CulturaViewSet(viewsets.ModelViewSet):
-    permission_classes = [IsAuthenticated]
     serializer_class = CulturaSerializer
 
     def get_queryset(self):

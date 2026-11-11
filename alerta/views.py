@@ -1,7 +1,6 @@
 from django.utils import timezone
 from rest_framework import mixins, status, viewsets
 from rest_framework.decorators import action
-from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from .models import Alerta
@@ -12,7 +11,6 @@ FILTROS = {'status': 'status', 'gravidade': 'gravidade', 'parametro': 'parametro
 
 # Alertas são criados só pelo sistema, a partir das leituras; pela API dá para listar e resolver
 class AlertaViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, viewsets.GenericViewSet):
-    permission_classes = [IsAuthenticated]
     queryset = Alerta.objects.select_related('mesa_id', 'leitura', 'resolvido_por')
     serializer_class = AlertaSerializer
 

@@ -3,7 +3,7 @@ import hmac
 from django.conf import settings
 from django.db.models import OuterRef, Subquery
 from rest_framework import viewsets, status
-from rest_framework.permissions import IsAuthenticated, BasePermission
+from rest_framework.permissions import BasePermission
 from rest_framework.response import Response
 from rest_framework.decorators import action
 from alerta.services import gerar_alertas
@@ -34,7 +34,6 @@ class HasAPIKey(BasePermission):
         return hmac.compare_digest(chave_recebida.encode(), chave_esperada.encode())
 
 class RegistroClimaViewSet(viewsets.ModelViewSet):
-    permission_classes = [IsAuthenticated]
     queryset = RegistroClima.objects.all()
     serializer_class = RegistroClimaSerializer
 
@@ -61,7 +60,6 @@ class RegistroClimaViewSet(viewsets.ModelViewSet):
 
 
 class RegistroIrrigacaoViewSet(viewsets.ModelViewSet):
-    permission_classes = [IsAuthenticated]
     queryset = RegistroIrrigacao.objects.all()
     serializer_class = RegistroIrrigacaoSerializer
 

@@ -1,6 +1,5 @@
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
-from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from django.db import transaction
 
@@ -10,7 +9,6 @@ from .models import LotePlantio, STATUS_EM_CULTIVO, STATUS_EM_ESTOQUE
 from .serializers import LotePlantioSerializer, RegistrarPerdaSerializer
 
 class LotePlantioViewSet(viewsets.ModelViewSet):
-    permission_classes = [IsAuthenticated]
     queryset = LotePlantio.objects.all().order_by('-id')
     serializer_class = LotePlantioSerializer
 

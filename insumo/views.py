@@ -1,5 +1,4 @@
 from rest_framework import viewsets, status
-from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from django.db import transaction
@@ -14,7 +13,6 @@ class PrevisaoEstoqueView(APIView):
     GET /api/estoque/previsao-prophet/ — quando cada insumo deve acabar, mais críticos primeiro.
     ?recalcular=1 força um novo ajuste; ?limite=N devolve só os N mais críticos.
     """
-    permission_classes = [IsAuthenticated]
 
     def get(self, request):
         recalcular = request.query_params.get('recalcular') in ('1', 'true')
@@ -29,7 +27,6 @@ class PrevisaoEstoqueView(APIView):
 
 
 class InsumoViewSet(viewsets.ModelViewSet):
-    permission_classes = [IsAuthenticated]
     queryset = Insumo.objects.all().order_by('nome')
     serializer_class = InsumoSerializer
 
@@ -58,7 +55,6 @@ class InsumoViewSet(viewsets.ModelViewSet):
 
 
 class MovimentacaoInsumoViewSet(viewsets.ModelViewSet):
-    permission_classes = [IsAuthenticated]
     queryset = MovimentacaoInsumo.objects.all().order_by('-data_movimentacao')
     serializer_class = MovimentacaoInsumoSerializer
 

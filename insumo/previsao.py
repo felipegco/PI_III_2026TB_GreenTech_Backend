@@ -17,7 +17,7 @@ from datetime import timedelta
 from django.db.models import Max, Q
 from django.utils import timezone
 
-from .models import Insumo, MovimentacaoInsumo, PrevisaoEstoque
+from .models import Insumo, PrevisaoEstoque
 
 JANELA_DIAS = 180            # histórico usado no ajuste
 HORIZONTE_DIAS = 365         # até onde a previsão procura o esgotamento

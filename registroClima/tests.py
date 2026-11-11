@@ -15,9 +15,8 @@ from mesa.models import Mesa
 from registroClima.management.commands.simular_irrigacao import (
     decidir, estado_atual, gerar_registro, valvula_da_mesa,
 )
-from registroClima.management.commands.simular_leituras import (
-    FAIXA_PADRAO, faixa_da_mesa, gerar_leitura,
-)
+from alerta.services import FAIXA_PADRAO
+from registroClima.management.commands.simular_leituras import faixa_da_mesa, gerar_leitura
 from registroClima.models import RegistroClima, RegistroIrrigacao
 
 URL_INGESTAO = '/api/clima/receber_dados_iot/'

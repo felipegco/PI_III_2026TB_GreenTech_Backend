@@ -1,9 +1,7 @@
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
-from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from django.contrib.auth import authenticate
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.admin.models import LogEntry
 import json
@@ -15,7 +13,6 @@ from .serializers import FuncionarioSerializer, AlterarSenhaSerializer
 class FuncionariosViewSet(viewsets.ModelViewSet):
     queryset = Funcionario.objects.all()
     serializer_class = FuncionarioSerializer
-    permission_classes = [IsAuthenticated]
 
     @action(detail=False, methods=['get', 'patch', 'put'], url_path='me')
     def me(self, request):
@@ -61,33 +58,7 @@ class FuncionariosViewSet(viewsets.ModelViewSet):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
-class LoginView(APIView):
-    def post(self, request):
-        usuario = request.data.get('username')
-        senha = request.data.get('password')
-
-        user = authenticate(username=usuario, password=senha)
-
-        if user is not None:
-            refresh = RefreshToken.for_user(user)
-
-            return Response(
-                {
-                    "message": "Login com sucesso!",
-                    "access": str(refresh.access_token),
-                    "refresh": str(refresh),
-                },
-                status=status.HTTP_200_OK
-            )
-        else:
-            return Response(
-                {"erro": "Usuário ou senha inválidos."},
-                status=status.HTTP_401_UNAUTHORIZED
-            )
-
-
 class LogoutView(APIView):
-    permission_classes = [IsAuthenticated]
 
     def post(self, request):
         try:
@@ -108,7 +79,6 @@ class LogoutView(APIView):
 
 
 class AuditoriaGeralView(APIView):
-    permission_classes = [IsAuthenticated]
 
     def get(self, request):
         user = request.user
