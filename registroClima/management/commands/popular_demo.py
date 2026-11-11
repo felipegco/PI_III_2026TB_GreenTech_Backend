@@ -30,12 +30,12 @@ AT, ES, BX, CO, PE = (LotePlantio.StatusPlantio.ATIVO, LotePlantio.StatusPlantio
 
 # nome, dias até a colheita, temp. mínima, temp. máxima, umidade ideal, descrição
 CULTURAS = [
-    ('Alface Crespa', 45, 15, 24, 70, 'Folhosa de ciclo curto, cultivada em perfis NFT.'),
-    ('Rúcula', 35, 15, 25, 70, 'Folhosa de crescimento rápido, sensível a calor excessivo.'),
-    ('Manjericão', 50, 18, 30, 60, 'Erva aromática; colheita por desbaste das pontas.'),
-    ('Tomate Cereja', 90, 18, 29, 65, 'Fruto em cachos, cultivado em vasos com fibra de coco.'),
-    ('Morango', 80, 13, 26, 70, 'Cultivo semi-hidropônico em bancadas suspensas.'),
-    ('Pimentão', 100, 18, 30, 65, 'Ciclo longo; exige solo úmido e boa luminosidade.'),
+    ('Alface Crespa', 'folhosa', 45, 15, 24, 70, 'Folhosa de ciclo curto, cultivada em perfis NFT.'),
+    ('Rúcula', 'folhosa', 35, 15, 25, 70, 'Folhosa de crescimento rápido, sensível a calor excessivo.'),
+    ('Manjericão', 'erva', 50, 18, 30, 60, 'Erva aromática; colheita por desbaste das pontas.'),
+    ('Tomate Cereja', 'frutifera', 90, 18, 29, 65, 'Fruto em cachos, cultivado em vasos com fibra de coco.'),
+    ('Morango', 'frutifera', 80, 13, 26, 70, 'Cultivo semi-hidropônico em bancadas suspensas.'),
+    ('Pimentão', 'hortalica_fruto', 100, 18, 30, 65, 'Ciclo longo; exige solo úmido e boa luminosidade.'),
 ]
 
 # nome, tipo de cultivo, capacidade, mesas (identificação, capacidade, tem sensor de solo e válvula)
@@ -184,10 +184,10 @@ class Command(BaseCommand):
     def _criar_culturas(self):
         return {
             nome: Cultura.objects.create(
-                nome_cultura=nome, tempo_medio_colheita=ciclo, temperatura_minima=t_min,
+                nome_cultura=nome, categoria=categoria, tempo_medio_colheita=ciclo, temperatura_minima=t_min,
                 temperatura_maxima=t_max, umidade_ideal=umidade, descricao=descricao,
             )
-            for nome, ciclo, t_min, t_max, umidade, descricao in CULTURAS
+            for nome, categoria, ciclo, t_min, t_max, umidade, descricao in CULTURAS
         }
 
     def _criar_estrutura(self):
